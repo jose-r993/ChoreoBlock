@@ -1,0 +1,80 @@
+.beat-sync-waveform {
+  .controls {
+    padding: 1rem;
+    border-bottom: 1px solid #ddd;
+
+    .play-button {
+      padding: 0.5rem 1rem;
+      margin-right: 1rem;
+    }
+
+    .zoom-controls,
+    .volume-control,
+    .offset-controls,
+    .custom-grouping {
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .zoom-controls button,
+    .volume-control input,
+    .offset-controls button,
+    .custom-grouping button {
+      margin-right: 0.5rem;
+    }
+
+    .custom-grouping input,
+    .custom-grouping select {
+      margin-right: 0.5rem;
+    }
+
+    .custom-group-list {
+      list-style: none;
+      padding: 0;
+      li {
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        button {
+          margin-left: auto;
+        }
+      }
+    }
+
+    .time-display,
+    .bpm-display {
+      margin-top: 0.5rem;
+      font-weight: bold;
+    }
+  }
+
+  .waveform-container {
+    position: relative;
+    .waveform {
+      width: 100%;
+      height: 100%;
+    }
+  }
+}
+
+.color-preview {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  margin-left: 8px;
+  border: 1px solid #000;
+}
+
+.group-color-box {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  margin-right: 4px;
+  border: 1px solid #000;
+}
+
+/* Marker label styling */
+.marker-label {
+  font-size: 0.8rem;
+  font-weight: bold;
+}
