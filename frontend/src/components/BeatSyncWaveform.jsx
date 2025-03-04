@@ -16,6 +16,7 @@ const BeatSyncWaveform = ({
   waveColor = "#4F76A3",
   progressColor = "#86A8E7",
   cursorColor = "#FF5500",
+  groupChangeHandler,
 }) => {
   const waveformRef = useRef(null);
   const wavesurfer = useRef(null);
@@ -284,8 +285,23 @@ const BeatSyncWaveform = ({
   };
 
   return (
-    <div className="beat-sync-waveform">
+    <>
       <div className="controls">
+        {beatTimestamps.length > 0 && (
+          <div className="group-size-selector">
+            <label htmlFor="group-size">Group Size:</label>
+            <select
+              id="group-size"
+              value={groupSize}
+              onChange={groupChangeHandler}
+            >
+              <option value="4">4 Beats</option>
+              <option value="8">8 Beats</option>
+              <option value="12">12 Beats</option>
+              <option value="16">16 Beats</option>
+            </select>
+          </div>
+        )}
         <button
           className={`play-button ${isPlaying ? "playing" : ""}`}
           onClick={togglePlay}
@@ -376,11 +392,10 @@ const BeatSyncWaveform = ({
         <div className="time-display">{formatTime(currentTime)}</div>
         {bpm && <div className="bpm-display">BPM: {bpm}</div>}
       </div>
-
       <div className="waveform-container">
         <div ref={waveformRef} className="waveform"></div>
       </div>
-    </div>
+    </>
   );
 };
 

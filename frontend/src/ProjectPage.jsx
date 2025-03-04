@@ -147,27 +147,13 @@ const ProjectPage = () => {
       </div>
       {audioFile && beatTimestamps.length > 0 && (
         <section className="waveform-section">
-          {beatTimestamps.length > 0 && (
-            <div className="group-size-selector">
-              <label htmlFor="group-size">Group Size:</label>
-              <select
-                id="group-size"
-                value={groupSize}
-                onChange={handleGroupSizeChange}
-              >
-                <option value="4">4 Beats</option>
-                <option value="8">8 Beats</option>
-                <option value="12">12 Beats</option>
-                <option value="16">16 Beats</option>
-              </select>
-            </div>
-          )}
           <BeatSyncWaveform
             ref={waveformRef}
             audioFile={audioFile}
             beatTimestamps={beatTimestamps}
             bpm={bpm}
             groupSize={groupSize}
+            groupChangeHandler={handleGroupSizeChange}
           />
         </section>
       )}
