@@ -1,0 +1,95 @@
+.waveform-page {
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+
+  &.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+
+    h2 {
+      margin-bottom: 1rem;
+      color: #555;
+    }
+
+    p {
+      color: #777;
+    }
+  }
+
+  .main-content {
+    display: flex;
+    width: 100%;
+    flex: 1 1 100px;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .stage-area {
+    width: 100%;
+
+    .stage-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+
+      h2 {
+        margin-bottom: 1rem;
+        color: #555;
+      }
+
+      p {
+        color: #777;
+      }
+    }
+  }
+
+  .waveform-header {
+    margin-bottom: 2rem;
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+      color: #333;
+    }
+
+    .file-info {
+      display: flex;
+      gap: 2rem;
+      padding: 1rem;
+      border-radius: 0.5rem;
+
+      .file-name {
+        font-weight: bold;
+      }
+
+      .file-bpm,
+      .file-beats {
+        color: #666;
+      }
+    }
+  }
+
+  .waveform-container {
+    height: 180px;
+    border-top: 1px solid #ddd;
+    background-color: #222;
+    position: relative;
+
+    @media (max-height: 800px) {
+      height: 150px;
+    }
+
+    @media (max-height: 600px) {
+      height: 120px;
+    }
+  }
+}

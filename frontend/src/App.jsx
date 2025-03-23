@@ -1,12 +1,16 @@
-import { useState } from "react";
-import ProjectPage from "./ProjectPage";
+import React from "react";
+import { Routes, Route } from "react-router";
+import UploadPage from "./pages/UploadPage.jsx";
+import WaveformPage from "./pages/WaveformPage.jsx";
 import "./App.css";
 
-const App = () => {
-  const [bpmData, setBpmData] = useState(null);
-  const [audioUrl, setAudioUrl] = useState(null);
-
-  return <ProjectPage />;
-};
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<UploadPage />} />
+      <Route path="/waveform" element={<WaveformPage />} />
+    </Routes>
+  );
+}
 
 export default App;
