@@ -1,0 +1,66 @@
+// Base colors from the image palette
+$deep-dark-blue: #0c0e1d; // Very dark blue/almost black
+$dark-purple: #211f36; // Very dark purple
+$purple-blue: #616083b2; // Dark purple/blue
+$lavender: #ab7de3; // Lavender purple
+$bright-pink: #ff81ff; // Bright pink/purple
+$mint-green: #24b26b;
+// $mint-green: #51faaa; // Mint green
+
+// Lighter/darker variations
+$darker-lavender: #8a60c0;
+$lighter-mint-green: #2acf82;
+$darker-mint-green: #188552; // Mint green
+$lighter-lavender: #c799ff;
+$darker-mint: #40db96;
+$lighter-pink: #ff9dff;
+
+// Original reference colors
+$lightest-blue: #4a6d8c;
+$background-dark: #121212;
+$text-light: #f5f5f5;
+$text-muted: #bbb;
+
+// Functional color assignments
+$background-color: $deep-dark-blue;
+$sidebar-header-bg: $dark-purple;
+$border-color: $purple-blue;
+$accent-color: $lavender;
+$cta-color: $mint-green;
+$cta-color-light: $lighter-mint-green;
+$active-color: $bright-pink;
+$text-color: $text-light;
+$text-accent: $lavender;
+
+// Gradients
+$gradient-background: radial-gradient(
+    farthest-corner at 100px 450px,
+    $dark-purple,
+    transparent
+  ),
+  radial-gradient(ellipse at bottom, $deep-dark-blue, transparent);
+$gradient-mint: linear-gradient(to right, $mint-green, $lighter-mint-green);
+$gradient-purple: linear-gradient(to right, $lavender, $lighter-lavender);
+$gradient-active: linear-gradient(to right, $bright-pink, $lighter-pink);
+
+// Spacing
+$spacing-xs: 0.25rem;
+$spacing-sm: 0.5rem;
+$spacing-md: 1rem;
+$spacing-lg: 1.5rem;
+$spacing-xl: 2rem;
+
+// Border radius
+$border-radius-sm: 0.25rem;
+$border-radius-md: 0.5rem;
+
+// Typography
+$font-size-xs: 0.75rem;
+$font-size-sm: 0.85rem;
+$font-size-md: 1rem;
+$font-size-lg: 1.25rem;
+$font-size-xl: 1.5rem;
+
+// Transitions
+$transition-fast: 0.2s ease;
+$transition-medium: 0.3s ease;

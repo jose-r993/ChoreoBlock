@@ -121,8 +121,6 @@ const WaveformPage = () => {
       <div className="main-content">
         <div className="sidebar">
           <SideBar
-            isPlaying={isPlaying}
-            onPlayPause={togglePlayPause}
             currentZoom={currentZoom}
             onZoomChange={handleZoomChange}
             volume={volume}
@@ -162,6 +160,8 @@ const WaveformPage = () => {
         <Waveform
           audioFile={audioFile}
           beatTimestamps={beatTimestamps}
+          onPlayPause={togglePlayPause}
+          isPlaying={isPlaying}
           bpm={bpm}
           groupSize={groupSize}
           onTimeUpdate={handleTimeUpdate}

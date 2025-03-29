@@ -1,4 +1,82 @@
+@import "variables.scss";
+
 .sidebar {
-  padding: 1rem;
+  background-color: $background-color;
   width: 20rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-right: 1px solid $border-color;
+
+  .tabs-header {
+    display: flex;
+    padding: $spacing-md;
+    border-bottom: 1px solid $border-color;
+    background-color: $background-color;
+
+    .tab-button {
+      background-color: transparent;
+      border: solid 0.5mm $border-color;
+      border-radius: $border-radius-sm;
+      padding: $spacing-sm;
+      margin: 0 $spacing-xs;
+      cursor: pointer;
+      transition: all $transition-fast;
+
+      .tab-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+        filter: brightness(0.8);
+        transition: filter $transition-fast;
+      }
+
+      &:hover {
+        background-color: rgba($accent-color, 0.2);
+        border-color: $accent-color;
+
+        .tab-icon {
+          filter: brightness(1);
+        }
+      }
+
+      &.active {
+        background-color: rgba($accent-color, 0.3);
+        border-color: $accent-color;
+        box-shadow: 0 0 5px rgba($accent-color, 0.5);
+
+        .tab-icon {
+          filter: brightness(1) drop-shadow(0 0 2px rgba($accent-color, 0.5));
+        }
+      }
+
+      &:focus {
+        outline: none;
+      }
+    }
+  }
+
+  .tab-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: $spacing-md;
+    background: $gradient-background;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: $sidebar-header-bg;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background-color: $border-color;
+      border-radius: 3px;
+
+      &:hover {
+        background-color: $accent-color;
+      }
+    }
+  }
 }

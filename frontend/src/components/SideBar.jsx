@@ -2,16 +2,14 @@ import React, { useState } from "react";
 import CustomBeatGroups from "./CustomBeatGroups";
 import PlaybackControls from "./PlaybackControls";
 import "../styles/SideBar.scss";
+import volumeIcon from "../assets/volumeIcon.svg";
+import stylusIcon from "../assets/stylusIcon.svg";
 
 const SideBar = ({
-  isPlaying,
-  onPlayPause,
   currentZoom,
   onZoomChange,
   volume,
   onVolumeChange,
-  currentTime,
-  bpm,
   groupSize,
   onGroupSizeChange,
   markerOffset,
@@ -40,17 +38,13 @@ const SideBar = ({
     {
       id: "playback",
       label: "Playback",
-      icon: "🎵",
+      icon: volumeIcon,
       component: (
         <PlaybackControls
-          isPlaying={isPlaying}
-          onPlayPause={onPlayPause}
           currentZoom={currentZoom}
           onZoomChange={onZoomChange}
           volume={volume}
           onVolumeChange={onVolumeChange}
-          currentTime={currentTime}
-          bpm={bpm}
           groupSize={groupSize}
           onGroupSizeChange={onGroupSizeChange}
           markerOffset={markerOffset}
@@ -64,7 +58,7 @@ const SideBar = ({
     {
       id: "beatGroups",
       label: "Beat Groups",
-      icon: "📋",
+      icon: stylusIcon,
       component: (
         <CustomBeatGroups
           customGroups={customGroups}
@@ -93,11 +87,10 @@ const SideBar = ({
             onClick={() => setActiveTab(tab.id)}
             title={tab.label}
           >
-            <span className="tab-icon">{tab.icon}</span>
+            <img className="tab-icon" src={tab.icon} alt={tab.label} />
           </button>
         ))}
       </div>
-
       <div className="tab-content">
         {tabs.find((tab) => tab.id === activeTab)?.component}
       </div>

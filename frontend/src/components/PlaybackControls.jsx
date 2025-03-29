@@ -2,14 +2,10 @@ import React from "react";
 import "../styles/PlaybackControls.scss";
 
 const PlaybackControls = ({
-  isPlaying,
-  onPlayPause,
   currentZoom,
   onZoomChange,
   volume,
   onVolumeChange,
-  currentTime,
-  bpm,
   groupSize,
   onGroupSizeChange,
   markerOffset,
@@ -24,32 +20,13 @@ const PlaybackControls = ({
   const handleDecreaseOffset = () => onOffsetChange(markerOffset - 1);
   const handleIncreaseOffset = () => onOffsetChange(markerOffset + 1);
 
-  const formatTime = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${minutes}:${secs.toString().padStart(2, "0")}`;
-  };
-
   return (
     <div className="playback-controls">
       <section className="playback-section">
         <h3 className="section-title">Playback</h3>
 
         <div className="control-group">
-          <button
-            className={`play-button ${isPlaying ? "playing" : ""}`}
-            onClick={onPlayPause}
-          >
-            {isPlaying ? "Pause" : "Play"}
-          </button>
-
-          <div className="time-display">{formatTime(currentTime)}</div>
-
-          {bpm && <div className="bpm-display">BPM: {bpm.toFixed(1)}</div>}
-        </div>
-
-        <div className="control-group">
-          <label className="control-label"></label>
+          <label className="control-label">Volume</label>
           <div className="volume-control">
             <input
               type="range"
@@ -78,7 +55,7 @@ const PlaybackControls = ({
       </section>
 
       <section className="markers-section">
-        <h3 className="section-title">Beat Markers</h3>
+        <h3 className="section-title">Markers Presets</h3>
 
         {beatTimestamps.length > 0 && (
           <div className="control-group">

@@ -14,6 +14,26 @@ const CustomBeatGroups = ({
   onInitialGroupStartChange,
   markerColors,
 }) => {
+  // New state for the group name input
+  const [groupNameInput, setGroupNameInput] = React.useState("");
+
+  // Modified onAddGroup handler to include the group name
+  const handleAddGroup = () => {
+    const newGroup = {
+      groupName: groupNameInput || `Group ${customGroups.length + 1}`,
+      groupLength: groupLengthInput,
+      color: newGroupColor,
+      startBeat:
+        customGroups.length === 0
+          ? initialGroupStart - 1
+          : customGroups[customGroups.length - 1].startBeat +
+            customGroups[customGroups.length - 1].groupLength,
+    };
+
+    onAddGroup(newGroup);
+    setGroupNameInput(""); // Reset the name input after adding
+  };
+
   return (
     <div className="custom-beat-groups">
       <section className="control-section">
@@ -35,6 +55,20 @@ const CustomBeatGroups = ({
               </div>
             </div>
           )}
+
+          <div className="control-group">
+            <label className="control-label">Group Name</label>
+            <input
+              type="text"
+              className="text-input"
+              value={groupNameInput}
+              onChange={(e) => setGroupNameInput(e.target.value)}
+              placeholder={`Group ${customGroups.length + 1}`}
+            />
+            <div className="input-description">
+              Optional name for this group (e.g., "Descanso")
+            </div>
+          </div>
 
           <div className="control-group">
             <label className="control-label">Group Length</label>
@@ -73,7 +107,7 @@ const CustomBeatGroups = ({
 
           <div className="actions-group">
             <button
-              onClick={onAddGroup}
+              onClick={handleAddGroup}
               className="action-button add-button"
               disabled={!groupLengthInput}
             >
@@ -103,7 +137,9 @@ const CustomBeatGroups = ({
                     className="group-color"
                     style={{ backgroundColor: group.color }}
                   ></span>
-                  <span className="group-name">Group {idx + 1}</span>
+                  <span className="group-name">
+                    {group.groupName || `Group ${idx + 1}`}
+                  </span>
                   <button
                     onClick={() => onRemoveGroup(idx)}
                     className="remove-button"

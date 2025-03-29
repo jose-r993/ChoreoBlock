@@ -1,3 +1,5 @@
+@import "variables.scss";
+
 .waveform-page {
   margin: 0 auto;
   display: flex;
@@ -79,17 +81,8 @@
   }
 
   .waveform-container {
-    height: 180px;
-    border-top: 1px solid #ddd;
+    border-top: 1px solid $border-color;
     background-color: #222;
     position: relative;
-
-    @media (max-height: 800px) {
-      height: 150px;
-    }
-
-    @media (max-height: 600px) {
-      height: 120px;
-    }
   }
 }

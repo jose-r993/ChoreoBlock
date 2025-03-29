@@ -1,0 +1,68 @@
+@import "variables.scss";
+
+.waveform-controls-container {
+  display: flex;
+  align-items: center;
+  padding: $spacing-sm;
+  background-color: $background-color;
+  border-top: 1px solid $border-color;
+  overflow: hidden;
+
+  .waveform-controls {
+    display: flex;
+    align-items: center;
+    margin: 0 auto;
+    width: max-content;
+
+    .play-button {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 36px;
+      height: 36px;
+      background: $gradient-mint;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all $transition-fast;
+      margin-right: $spacing-md;
+      padding: 0;
+      position: relative;
+
+      img {
+        width: 18px;
+        height: 18px;
+        filter: brightness(0.2); // Makes icon dark
+      }
+
+      &:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 10px rgba($cta-color, 0.5);
+      }
+
+      &:active {
+        transform: scale(0.98);
+      }
+    }
+
+    .song-information {
+      position: absolute;
+      left: 0.5rem;
+    }
+
+    .time-display,
+    .bpm-display,
+    .song-name {
+      padding: $spacing-xs $spacing-sm;
+      background-color: rgba($background-color, 0.6);
+      border-radius: $border-radius-sm;
+      color: $text-color;
+      font-family: monospace;
+      font-size: $font-size-sm;
+      margin-right: $spacing-md;
+      border: 1px solid $border-color;
+      position: relative;
+      display: inline-block;
+    }
+  }
+}

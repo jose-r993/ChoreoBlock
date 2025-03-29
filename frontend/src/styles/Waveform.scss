@@ -1,0 +1,62 @@
+@import "variables.scss";
+
+.waveform-component {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background-color: $background-color;
+
+  .waveform {
+    flex: 1;
+    background-color: rgba($sidebar-header-bg, 0.3);
+    border-bottom: 1px solid $border-color;
+    min-height: 80px;
+
+    ::v-deep .wavesurfer-cursor {
+      border-radius: 0;
+      width: 1px;
+      background-color: $accent-color;
+      box-shadow: 0 0 3px rgba($accent-color, 0.7);
+    }
+
+    ::v-deep .wavesurfer-region {
+      z-index: 3;
+
+      .marker-label {
+        font-size: 10px;
+        font-weight: bold;
+        color: $text-color;
+        position: absolute;
+        top: -15px;
+        left: 50%;
+        transform: translateX(-50%);
+        text-shadow: 0 0 2px rgba($background-color, 0.8);
+      }
+    }
+  }
+
+  .timeline {
+    height: 30px;
+    background-color: $sidebar-header-bg;
+    border-bottom: 1px solid $border-color;
+
+    ::v-deep .wavesurfer-timelinewave {
+      color: $text-muted;
+      font-size: 11px;
+    }
+
+    ::v-deep .wavesurfer-timelinepoint {
+      &:before {
+        background-color: $border-color;
+      }
+    }
+  }
+}
+
+/* Additional styling for marker labels */
+.marker-label {
+  font-size: 10px;
+  font-weight: bold;
+  color: $text-color;
+  text-shadow: 0 0 2px rgba($background-color, 0.8);
+}
