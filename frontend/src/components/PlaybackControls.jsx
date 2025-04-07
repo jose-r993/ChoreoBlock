@@ -86,7 +86,7 @@ const PlaybackControls = ({
           </select>
         </div>
 
-        <div className="control-group">
+        {/* <div className="control-group">
           <label className="control-label">Beat Offset</label>
           <div className="offset-controls">
             <button onClick={handleDecreaseOffset} className="offset-button">
@@ -97,7 +97,7 @@ const PlaybackControls = ({
               +
             </button>
           </div>
-        </div>
+        </div> */}
       </section>
     </div>
   );

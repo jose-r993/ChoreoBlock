@@ -1,0 +1,235 @@
+@import "./variables.scss";
+
+.stage-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background-color: $background-color;
+
+  .stage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+
+    h2 {
+      color: #f5f5f5;
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .stage-info {
+      color: #bbb;
+      font-size: 0.85rem;
+    }
+
+    .stage-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+
+      .transition-control {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        label {
+          color: #bbb;
+          font-size: 0.75rem;
+        }
+
+        .transition-input {
+          width: 3rem;
+          padding: 0.25rem;
+          background-color: #0c1821;
+          color: #f5f5f5;
+          border: 1px solid #324a5f;
+          border-radius: 0.25rem;
+          font-size: 0.75rem;
+          text-align: center;
+
+          &:focus {
+            outline: none;
+            border-color: #f5f5f5;
+          }
+        }
+      }
+
+      .path-toggle {
+        padding: 0.35rem 0.65rem;
+        background-color: #324a5f;
+        color: #f5f5f5;
+        border: none;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+
+        &:hover {
+          background-color: #3a587d;
+        }
+
+        &.active {
+          background-color: #8b2635;
+
+          &:hover {
+            background-color: #a13040;
+          }
+        }
+      }
+
+      .path-modes {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+
+        .path-mode {
+          padding: 0.25rem 0.5rem;
+          background-color: #0c1821;
+          color: #bbb;
+          border: 1px solid #324a5f;
+          border-radius: 0.25rem;
+          font-size: 0.7rem;
+          cursor: pointer;
+          transition: all 0.2s;
+
+          &:hover {
+            background-color: #1b2a41;
+            color: #f5f5f5;
+          }
+
+          &.active {
+            background-color: #324a5f;
+            color: #f5f5f5;
+          }
+        }
+      }
+    }
+  }
+
+  .stage-area {
+    flex: 1;
+    position: relative;
+    background-color: #1a1a1a;
+    overflow: hidden;
+
+    &.drawing-mode {
+      cursor: crosshair;
+    }
+
+    .stage-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-size: 40px 40px;
+      background-image: linear-gradient(to right, #333 1px, transparent 1px),
+        linear-gradient(to bottom, #333 1px, transparent 1px);
+      pointer-events: none;
+    }
+
+    .stage-placeholder {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: rgba(255, 255, 255, 0.5);
+
+      p {
+        font-size: 16px;
+        margin: 8px 0;
+      }
+
+      .hint {
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.3);
+      }
+    }
+
+    .dancer {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      z-index: 10;
+
+      &:hover {
+        z-index: 20;
+
+        .dancer-name {
+          opacity: 1;
+        }
+      }
+
+      &.path-active::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 2px dashed rgba(255, 255, 255, 0.5);
+        animation: pulse 1.5s infinite;
+      }
+
+      .dancer-name {
+        position: absolute;
+        bottom: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-size: 12px;
+        color: white;
+        text-shadow: 0 0 2px black, 0 0 3px black;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+        pointer-events: none;
+      }
+    }
+  }
+
+  .path-preview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .existing-paths {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 3;
+    opacity: 0.3;
+
+    path {
+      stroke-dasharray: 3, 2;
+    }
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.5;
+  }
+}

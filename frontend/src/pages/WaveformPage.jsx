@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { useLocation } from "react-router";
 import Waveform from "../components/Waveform";
 import SideBar from "../components/SideBar";
+import Stage from "../components/Stage";
 import "../styles/WaveformPage.scss";
 
 const MARKER_COLORS = ["#FF5500", "#00AAFF", "#22CCAA", "#FFAA00", "#FF00AA"];
@@ -21,6 +22,10 @@ const WaveformPage = () => {
   const [newGroupColor, setNewGroupColor] = useState(MARKER_COLORS[0]);
   const [groupLengthInput, setGroupLengthInput] = useState("");
   const [initialGroupStart, setInitialGroupStart] = useState("1");
+  const [activeGroupIndex, setActiveGroupIndex] = useState(null);
+
+  const [dancers, setDancers] = useState([]);
+  const [formations, setFormations] = useState([]);
 
   const updateWavesurfer = useCallback((callback) => {
     if (wavesurferRef.current) {
@@ -69,30 +74,53 @@ const WaveformPage = () => {
     setSubdivisionFactor(newFactor);
   }, []);
 
-  const handleAddGroup = useCallback(() => {
-    const length = parseInt(groupLengthInput);
-    if (isNaN(length) || length <= 0) return;
+  const handleAddGroup = useCallback((newGroup) => {
+    setCustomGroups((prevGroups) => {
+      const newGroups = [
+        ...prevGroups,
+        {
+          ...newGroup,
+          groupLength: parseInt(newGroup.groupLength, 10),
+          startBeat: parseInt(newGroup.startBeat, 10),
+        },
+      ];
 
-    let startBeat;
-    if (customGroups.length === 0) {
-      startBeat = parseInt(initialGroupStart) - 1;
-      if (isNaN(startBeat) || startBeat < 0) startBeat = 0;
-    } else {
-      const lastGroup = customGroups[customGroups.length - 1];
-      startBeat = lastGroup.startBeat + lastGroup.groupLength;
-    }
+      setFormations((prevFormations) => {
+        const newFormations = [...prevFormations];
+        // Create empty object for the new formation - will be populated with dancers' positions
+        newFormations[newGroups.length - 1] = {};
+        return newFormations;
+      });
 
-    const newGroup = { startBeat, groupLength: length, color: newGroupColor };
-    setCustomGroups((prev) => [...prev, newGroup]);
+      return newGroups;
+    });
+
     setGroupLengthInput("");
-  }, [customGroups, groupLengthInput, initialGroupStart, newGroupColor]);
-
-  const handleRemoveGroup = useCallback((indexToRemove) => {
-    setCustomGroups((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   }, []);
+
+  const handleRemoveGroup = useCallback(
+    (indexToRemove) => {
+      setCustomGroups((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+
+      setFormations((prev) => {
+        const newFormations = [...prev];
+        newFormations.splice(indexToRemove, 1);
+        return newFormations;
+      });
+
+      if (activeGroupIndex === indexToRemove) {
+        setActiveGroupIndex(null);
+      } else if (activeGroupIndex > indexToRemove) {
+        setActiveGroupIndex(activeGroupIndex - 1);
+      }
+    },
+    [activeGroupIndex]
+  );
 
   const handleClearCustomGroups = useCallback(() => {
     setCustomGroups([]);
+    setFormations([]);
+    setActiveGroupIndex(null);
   }, []);
 
   const handleNewGroupColorChange = useCallback((event) => {
@@ -106,6 +134,70 @@ const WaveformPage = () => {
   const setWavesurferRef = useCallback((instance) => {
     wavesurferRef.current = instance;
   }, []);
+
+  const handleJumpToPosition = useCallback(
+    (timestamp, index) => {
+      if (!timestamp || typeof timestamp !== "number") return;
+
+      setActiveGroupIndex(index);
+
+      updateWavesurfer((wavesurfer) => {
+        wavesurfer.seekTo(timestamp / wavesurfer.getDuration());
+      });
+    },
+    [updateWavesurfer]
+  );
+
+  const handleAddDancer = useCallback((newDancer) => {
+    setDancers((prev) => [...prev, newDancer]);
+
+    // Initialize this dancer's position in all existing formations
+    setFormations((prev) => {
+      const updatedFormations = [...prev];
+
+      updatedFormations.forEach((formation, index) => {
+        if (!formation[newDancer.id]) {
+          updatedFormations[index] = {
+            ...formation,
+            [newDancer.id]: { x: 200, y: 200 },
+          };
+        }
+      });
+
+      return updatedFormations;
+    });
+  }, []);
+
+  const handleRemoveDancer = useCallback((dancerId) => {
+    setDancers((prev) => prev.filter((dancer) => dancer.id !== dancerId));
+
+    // Remove dancer from all formations
+    setFormations((prev) => {
+      return prev.map((formation) => {
+        const newFormation = { ...formation };
+        delete newFormation[dancerId];
+        return newFormation;
+      });
+    });
+  }, []);
+
+  const handleUpdateFormation = useCallback(
+    (groupIndex, updatedFormation) => {
+      if (
+        groupIndex === null ||
+        groupIndex < 0 ||
+        groupIndex >= formations.length
+      )
+        return;
+
+      setFormations((prev) => {
+        const newFormations = [...prev];
+        newFormations[groupIndex] = updatedFormation;
+        return newFormations;
+      });
+    },
+    [formations.length]
+  );
 
   if (!audioFile || !beatTimestamps.length) {
     return (
@@ -138,22 +230,29 @@ const WaveformPage = () => {
             newGroupColor={newGroupColor}
             onNewGroupColorChange={handleNewGroupColorChange}
             groupLengthInput={groupLengthInput}
-            onGroupLengthChange={setGroupLengthInput}
+            onGroupLengthChange={(value) => setGroupLengthInput(value)}
             initialGroupStart={initialGroupStart}
-            onInitialGroupStartChange={setInitialGroupStart}
+            onInitialGroupStartChange={(value) => setInitialGroupStart(value)}
             markerColors={MARKER_COLORS}
             currentTime={currentTime}
             bpm={bpm}
             beatTimestamps={beatTimestamps}
+            onJumpToPosition={handleJumpToPosition}
+            activeGroupIndex={activeGroupIndex}
+            dancers={dancers}
+            onAddDancer={handleAddDancer}
+            onRemoveDancer={handleRemoveDancer}
           />
         </div>
-
-        <div className="stage-area">
-          <div className="stage-placeholder">
-            <h2>Choreography Stage</h2>
-            <p>This is where dancers will be positioned</p>
-          </div>
-        </div>
+        <Stage
+          dancers={dancers}
+          activeGroupIndex={activeGroupIndex}
+          formations={formations}
+          onUpdateFormation={handleUpdateFormation}
+          currentTime={currentTime}
+          beatTimestamps={beatTimestamps}
+          customGroups={customGroups}
+        />
       </div>
 
       <div className="waveform-container">

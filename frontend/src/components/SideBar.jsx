@@ -1,9 +1,11 @@
 import React, { useState } from "react";
 import CustomBeatGroups from "./CustomBeatGroups";
 import PlaybackControls from "./PlaybackControls";
+import DancerManagement from "./DancerManagement";
 import "../styles/SideBar.scss";
 import volumeIcon from "../assets/volumeIcon.svg";
 import stylusIcon from "../assets/stylusIcon.svg";
+import dancerIcon from "../assets/dancerIcon.svg";
 
 const SideBar = ({
   currentZoom,
@@ -28,11 +30,28 @@ const SideBar = ({
   onInitialGroupStartChange,
   markerColors,
   beatTimestamps = [],
+  onJumpToPosition,
+  activeGroupIndex,
+  dancers,
+  onAddDancer,
+  onRemoveDancer,
+  onEditDancer,
 }) => {
-  const [activeTab, setActiveTab] = useState("playback");
-  const handleGroupLengthChange = (e) => onGroupLengthChange(e.target.value);
-  const handleInitialGroupStartChange = (e) =>
-    onInitialGroupStartChange(e.target.value);
+  const [activeTab, setActiveTab] = useState("beatGroups"); // Default to beat groups tab for choreography
+
+  const handleGroupLengthChange = (e) => {
+    const value = parseInt(e.target.value, 10) || ""; // Empty string if parsing fails
+    onGroupLengthChange(value);
+  };
+
+  const handleInitialGroupStartChange = (e) => {
+    const value = parseInt(e.target.value, 10) || 1; // Default to 1 if invalid
+    onInitialGroupStartChange(value);
+  };
+
+  const handleAddGroup = (newGroup) => {
+    onAddGroup(newGroup);
+  };
 
   const tabs = [
     {
@@ -62,7 +81,7 @@ const SideBar = ({
       component: (
         <CustomBeatGroups
           customGroups={customGroups}
-          onAddGroup={onAddGroup}
+          onAddGroup={handleAddGroup}
           onRemoveGroup={onRemoveGroup}
           onClearGroups={onClearGroups}
           newGroupColor={newGroupColor}
@@ -72,6 +91,22 @@ const SideBar = ({
           initialGroupStart={initialGroupStart}
           onInitialGroupStartChange={handleInitialGroupStartChange}
           markerColors={markerColors}
+          beatTimestamps={beatTimestamps}
+          onJumpToPosition={onJumpToPosition}
+          activeGroupIndex={activeGroupIndex}
+        />
+      ),
+    },
+    {
+      id: "dancers",
+      label: "Dancers",
+      icon: dancerIcon || stylusIcon, // Fallback to stylusIcon if dancerIcon is missing
+      component: (
+        <DancerManagement
+          dancers={dancers}
+          onAddDancer={onAddDancer}
+          onRemoveDancer={onRemoveDancer}
+          onEditDancer={onEditDancer}
         />
       ),
     },
