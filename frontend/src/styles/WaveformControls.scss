@@ -1,11 +1,11 @@
-@import "variables.scss";
+@use "variables";
 
 .waveform-controls-container {
   display: flex;
   align-items: center;
-  padding: $spacing-sm;
-  background-color: $background-color;
-  border-top: 1px solid $border-color;
+  padding: variables.$spacing-sm;
+  background-color: variables.$background-color;
+  border-top: 1px solid variables.$border-color;
   overflow: hidden;
 
   .waveform-controls {
@@ -20,24 +20,25 @@
       align-items: center;
       width: 36px;
       height: 36px;
-      background: $gradient-mint;
+      background: variables.$gradient-mint;
       border: none;
       border-radius: 50%;
       cursor: pointer;
-      transition: all $transition-fast;
-      margin-right: $spacing-md;
+      transition: all variables.$transition-fast;
+      margin-right: variables.$spacing-md;
       padding: 0;
       position: relative;
+      margin: 0 variables.$spacing-md;
 
       img {
         width: 18px;
         height: 18px;
-        filter: brightness(0.2); // Makes icon dark
+        filter: brightness(0.2);
       }
 
       &:hover {
         transform: scale(1.05);
-        box-shadow: 0 0 10px rgba($cta-color, 0.5);
+        box-shadow: 0 0 10px rgba(variables.$cta-color, 0.5);
       }
 
       &:active {
@@ -50,19 +51,23 @@
       left: 0.5rem;
     }
 
+    .bpm-display {
+      margin-left: variables.$spacing-md;
+    }
+
     .time-display,
     .bpm-display,
     .song-name {
-      padding: $spacing-xs $spacing-sm;
-      background-color: rgba($background-color, 0.6);
-      border-radius: $border-radius-sm;
-      color: $text-color;
+      padding: variables.$spacing-xs variables.$spacing-sm;
+      background-color: rgba(variables.$background-color, 0.6);
+      border-radius: variables.$border-radius-sm;
+      color: variables.$text-color;
       font-family: monospace;
-      font-size: $font-size-sm;
-      margin-right: $spacing-md;
-      border: 1px solid $border-color;
+      font-size: variables.$font-size-sm;
+      border: 1px solid variables.$border-color;
       position: relative;
       display: inline-block;
+      min-width: 42px;
     }
   }
 }

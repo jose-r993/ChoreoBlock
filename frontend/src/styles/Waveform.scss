@@ -1,22 +1,33 @@
-@import "variables.scss";
+@use "variables";
 
 .waveform-component {
   display: flex;
   flex-direction: column;
   width: 100%;
-  background-color: $background-color;
+  min-width: 320px;
+  background-color: variables.$background-color;
+
+  .waveform-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    overflow: hidden;
+  }
 
   .waveform {
     flex: 1;
-    background-color: rgba($sidebar-header-bg, 0.3);
-    border-bottom: 1px solid $border-color;
+    background-color: rgba(variables.$sidebar-header-bg, 0.25);
+    border-bottom: 1px solid variables.$border-color;
     min-height: 80px;
+    position: relative;
+    z-index: 1;
 
     ::v-deep .wavesurfer-cursor {
       border-radius: 0;
       width: 1px;
-      background-color: $accent-color;
-      box-shadow: 0 0 3px rgba($accent-color, 0.7);
+      background-color: variables.$accent-color;
+      box-shadow: 0 0 3px rgba(variables.$accent-color, 0.7);
     }
 
     ::v-deep .wavesurfer-region {
@@ -25,38 +36,282 @@
       .marker-label {
         font-size: 10px;
         font-weight: bold;
-        color: $text-color;
+        color: variables.$text-color;
         position: absolute;
         top: -15px;
         left: 50%;
         transform: translateX(-50%);
-        text-shadow: 0 0 2px rgba($background-color, 0.8);
+        text-shadow: 0 0 2px rgba(variables.$background-color, 0.8);
       }
+    }
+
+    ::part(scroll) {
+      scrollbar-width: thin;
     }
   }
 
   .timeline {
     height: 30px;
-    background-color: $sidebar-header-bg;
-    border-bottom: 1px solid $border-color;
+    background-color: variables.$sidebar-header-bg;
+    border-bottom: 1px solid variables.$border-color;
 
     ::v-deep .wavesurfer-timelinewave {
-      color: $text-muted;
+      color: variables.$text-muted;
       font-size: 11px;
     }
 
     ::v-deep .wavesurfer-timelinepoint {
       &:before {
-        background-color: $border-color;
+        background-color: variables.$border-color;
       }
     }
   }
 }
 
-/* Additional styling for marker labels */
+.formations-regions-header {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  background-color: rgba(35, 35, 45, 0.6);
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+
+.formations-regions {
+  position: relative;
+  height: 50px;
+  background-color: rgba(35, 35, 45, 0.5);
+  border-radius: 4px;
+  margin-bottom: 5px;
+  overflow: auto hidden;
+  z-index: 2;
+
+  /* Scrollbar styling */
+  &::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: rgba(35, 35, 45, 0.3);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(35, 35, 45, 0.3);
+}
+
 .marker-label {
   font-size: 10px;
   font-weight: bold;
-  color: $text-color;
-  text-shadow: 0 0 2px rgba($background-color, 0.8);
+  color: variables.$text-color;
+  text-shadow: 0 0 2px rgba(variables.$background-color, 0.8);
+}
+
+.wavesurfer-region[data-id^="beat-"] {
+  z-index: 4 !important;
+}
+
+.transition-beat {
+  height: 100% !important;
+}
+
+.formation-group {
+  position: absolute;
+  height: 24px;
+  border: 2px solid;
+  border-radius: 4px;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  top: 5px;
+  transition: box-shadow 0.2s ease;
+
+  &.has-overlap {
+    border-style: dashed;
+    box-shadow: 0 0 5px rgba(255, 0, 0, 0.5);
+  }
+
+  &.active {
+    border-width: 3px;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+    z-index: 10;
+  }
+}
+
+.formation-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+}
+
+.formation-name {
+  font-size: 12px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
+}
+
+.transition-indicator {
+  position: absolute;
+  border-radius: 4px;
+  pointer-events: all;
+  cursor: pointer;
+  z-index: 4;
+}
+
+.transition-content {
+  position: absolute;
+  top: 3px;
+  width: 100%;
+  text-align: center;
+  font-size: 10px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 2px #000;
+  pointer-events: none;
+}
+
+.snap-options {
+  display: flex;
+  gap: 15px;
+}
+
+.snap-radio {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.formation-info {
+  margin-left: 15px;
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.handle {
+  position: absolute;
+  width: 8px;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.5);
+  cursor: col-resize;
+  z-index: 10;
+
+  &.handle-start {
+    left: 0;
+    top: 0;
+    border-radius: 3px 0 0 3px;
+  }
+
+  &.handle-end {
+    right: 0;
+    top: 0;
+    border-radius: 0 3px 3px 0;
+  }
+}
+
+.handle-transition-start,
+.handle-transition-end {
+  position: absolute;
+  width: 8px;
+  height: 20px;
+  background-color: #fff;
+  top: 0;
+  opacity: 0.6;
+  cursor: ew-resize;
+  transition: opacity 0.2s;
+  z-index: 2;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.handle-transition-start {
+  left: 0;
+  border-radius: 3px 0 0 3px;
+}
+
+.handle-transition-end {
+  right: 0;
+  border-radius: 0 3px 3px 0;
+}
+
+.add-formation-btn {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 30px;
+  height: 30px;
+  background-color: #5a7ca5;
+  color: #fff;
+  border: none;
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100;
+
+  span {
+    font-size: 20px;
+    color: rgba(255, 255, 255, 0.8);
+  }
+}
+
+.layer-controls {
+  display: flex;
+  margin-left: 20px;
+}
+
+.layer-toggle {
+  background-color: rgba(35, 35, 40, 0.6);
+  color: #999;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  margin-right: 4px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &.active {
+    background-color: rgba(61, 131, 184, 0.5);
+    color: #fff;
+    border-color: rgba(99, 169, 223, 0.6);
+  }
+}
+
+.beat-tooltip {
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 10;
 }

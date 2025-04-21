@@ -1,9 +1,9 @@
 import React from "react";
-import "../styles/BasicWaveformControls.scss";
+import "../styles/WaveformControls.scss";
 import playIcon from "../assets/playIcon.svg";
 import pauseIcon from "../assets/pauseIcon.svg";
 
-const BasicWaveformControls = ({
+const WaveformControls = ({
   isPlaying,
   onPlayPause,
   currentTime,
@@ -47,4 +47,4 @@ const BasicWaveformControls = ({
   );
 };
 
-export default BasicWaveformControls;
+export default WaveformControls;

@@ -1,480 +1,436 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 
-// Main controller for the formation system
-const FormationController = ({
-  audioFile,
-  beatTimestamps,
+const useFormationController = ({
   dancers,
+  formations,
+  customGroups,
+  beatTimestamps,
   currentTime,
-  onJumpToPosition,
+  activeGroupIndex,
+  onUpdateFormation,
 }) => {
-  // State for choreography data
-  const [groups, setGroups] = useState([]);
-  const [formations, setFormations] = useState([]);
-  const [activeGroupId, setActiveGroupId] = useState(null);
-  const [activeFormationId, setActiveFormationId] = useState(null);
+  const prevFormationsRef = useRef({});
+  const lastKnownPositions = useRef({});
+  const transitionProgressRef = useRef(0);
+  const isInTransitionRef = useRef(false);
 
-  // Keep track of which formation is active based on current playback time
+  const [currentFormationIndex, setCurrentFormationIndex] =
+    useState(activeGroupIndex);
+  const [dancerTransitions, setDancerTransitions] = useState({});
+
   useEffect(() => {
-    if (!beatTimestamps.length || !formations.length) return;
+    if (!beatTimestamps.length || !customGroups.length) return;
 
-    // Find the formation that corresponds to current playback time
-    let currentFormation = null;
-    let currentGroup = null;
+    let foundFormation = false;
 
-    for (const formation of formations) {
-      // Get the start time of this formation
-      const startBeatIndex = Math.min(
-        formation.startBeat,
-        beatTimestamps.length - 1
-      );
+    for (let i = 0; i < customGroups.length; i++) {
+      const group = customGroups[i];
+      const startBeatIndex = group.startBeat;
+      const endBeatIndex = startBeatIndex + group.groupLength;
+
+      if (startBeatIndex >= beatTimestamps.length) continue;
+
       const startTime = beatTimestamps[startBeatIndex];
+      const endTime =
+        endBeatIndex < beatTimestamps.length
+          ? beatTimestamps[endBeatIndex]
+          : beatTimestamps[beatTimestamps.length - 1] + 1;
 
-      // Get end time (either next formation start or group end)
-      const group = groups.find((g) => g.id === formation.groupId);
-      if (!group) continue;
-
-      // Find next formation in the same group
-      const nextFormation = formations
-        .filter(
-          (f) =>
-            f.groupId === formation.groupId && f.startBeat > formation.startBeat
-        )
-        .sort((a, b) => a.startBeat - b.startBeat)[0];
-
-      let endTime;
-      if (nextFormation) {
-        // End at the start of the next formation
-        const endBeatIndex = Math.min(
-          nextFormation.startBeat,
-          beatTimestamps.length - 1
-        );
-        endTime = beatTimestamps[endBeatIndex];
-      } else {
-        // End at the end of the group
-        const endBeatIndex = Math.min(
-          group.startBeat + group.length,
-          beatTimestamps.length - 1
-        );
-        endTime = beatTimestamps[endBeatIndex];
-      }
-
-      // Check if current time is within this formation
       if (currentTime >= startTime && currentTime < endTime) {
-        currentFormation = formation;
-        currentGroup = group;
+        if (currentFormationIndex !== i) {
+          const prevDancerPositions = {};
+
+          dancers.forEach((dancer) => {
+            const currentPos = getDancerPosition(dancer.id);
+            prevDancerPositions[dancer.id] = currentPos;
+            lastKnownPositions.current[dancer.id] = currentPos;
+          });
+
+          prevFormationsRef.current = prevDancerPositions;
+          transitionProgressRef.current = 0;
+        }
+
+        setCurrentFormationIndex(i);
+        foundFormation = true;
         break;
       }
     }
 
-    // Update the active formation and group if needed
-    if (currentFormation && currentFormation.id !== activeFormationId) {
-      setActiveFormationId(currentFormation.id);
-    }
-
-    if (currentGroup && currentGroup.id !== activeGroupId) {
-      setActiveGroupId(currentGroup.id);
+    if (!foundFormation && customGroups.length > 0) {
+      setCurrentFormationIndex(0);
     }
   }, [
     currentTime,
     beatTimestamps,
-    formations,
-    groups,
-    activeFormationId,
-    activeGroupId,
+    customGroups,
+    dancers,
+    currentFormationIndex,
   ]);
 
-  // Add a new choreography group
-  const addGroup = useCallback(
-    (groupData) => {
-      const newGroup = {
-        id: `group-${Date.now()}`,
-        name: groupData.name || `Group ${groups.length + 1}`,
-        color: groupData.color || "#FF5500",
-        startBeat: groupData.startBeat || 0,
-        length: groupData.length || 8,
-        formationIds: [],
-      };
+  useEffect(() => {
+    if (activeGroupIndex !== null) {
+      setCurrentFormationIndex(activeGroupIndex);
+    }
+  }, [activeGroupIndex]);
 
-      setGroups((prev) => [...prev, newGroup]);
+  useEffect(() => {
+    if (
+      !beatTimestamps.length ||
+      !customGroups.length ||
+      currentFormationIndex === null
+    )
+      return;
 
-      // Automatically create initial formation for this group
-      const initialFormation = {
-        id: `formation-${Date.now()}`,
-        groupId: newGroup.id,
-        name: `${newGroup.name} - Initial`,
-        startBeat: newGroup.startBeat,
-        transitionBeats: 4,
-        dancerPositions: {},
-      };
+    const currentGroup = customGroups[currentFormationIndex];
+    if (!currentGroup) return;
 
-      // Initialize with default positions for all dancers
-      dancers.forEach((dancer) => {
-        initialFormation.dancerPositions[dancer.id] = {
-          x: 200 + Math.random() * 100 - 50, // Random initial position around center
-          y: 200 + Math.random() * 100 - 50,
-          transitionType: "linear", // Default transition type
-        };
-      });
+    const startBeatIndex = currentGroup.startBeat;
 
-      // Update formations state
-      setFormations((prev) => [...prev, initialFormation]);
+    const transitionStartBeat =
+      startBeatIndex + (currentGroup.transitionStartBeat || 0);
 
-      // Link this formation to the group
-      setGroups((prev) =>
-        prev.map((g) => {
-          if (g.id === newGroup.id) {
-            return {
-              ...g,
-              formationIds: [initialFormation.id],
-            };
-          }
-          return g;
-        })
-      );
+    const transitionLength = currentGroup.transitionLength || 4;
 
-      // Activate the new formation and group
-      setActiveGroupId(newGroup.id);
-      setActiveFormationId(initialFormation.id);
-
-      return newGroup.id;
-    },
-    [groups, dancers]
-  );
-
-  // Add a new formation to an existing group
-  const addFormation = useCallback(
-    (groupId, formationData) => {
-      const group = groups.find((g) => g.id === groupId);
-      if (!group) return null;
-
-      // Find latest formation in this group to use as reference
-      const existingFormations = formations
-        .filter((f) => f.groupId === groupId)
-        .sort((a, b) => a.startBeat - b.startBeat);
-
-      const latestFormation = existingFormations[existingFormations.length - 1];
-
-      // Determine start beat for the new formation
-      let startBeat;
-      if (formationData && typeof formationData.startBeat === "number") {
-        startBeat = formationData.startBeat;
-      } else if (latestFormation) {
-        // Default to 8 beats after the last formation
-        startBeat = latestFormation.startBeat + 8;
-      } else {
-        startBeat = group.startBeat;
-      }
-
-      // Make sure we're still within the group
-      if (startBeat >= group.startBeat + group.length) {
-        // Extend the group if needed
-        setGroups((prev) =>
-          prev.map((g) => {
-            if (g.id === groupId) {
-              return {
-                ...g,
-                length: startBeat - g.startBeat + 8, // Add 8 beats for this formation
-              };
-            }
-            return g;
-          })
-        );
-      }
-
-      // Create the new formation
-      const newFormation = {
-        id: `formation-${Date.now()}`,
-        groupId: groupId,
-        name: formationData?.name || `Formation ${formations.length + 1}`,
-        startBeat: startBeat,
-        transitionBeats: formationData?.transitionBeats || 4,
-        dancerPositions: {},
-      };
-
-      // Copy dancer positions from previous formation if available
-      if (latestFormation) {
-        Object.entries(latestFormation.dancerPositions).forEach(
-          ([dancerId, position]) => {
-            // Copy position but not paths
-            const { path, ...positionWithoutPath } = position;
-            newFormation.dancerPositions[dancerId] = positionWithoutPath;
-          }
-        );
-      } else {
-        // Initialize with default positions
-        dancers.forEach((dancer) => {
-          newFormation.dancerPositions[dancer.id] = {
-            x: 200 + Math.random() * 100 - 50,
-            y: 200 + Math.random() * 100 - 50,
-            transitionType: "linear",
-          };
-        });
-      }
-
-      // Update formations state
-      setFormations((prev) => [...prev, newFormation]);
-
-      // Link this formation to the group
-      setGroups((prev) =>
-        prev.map((g) => {
-          if (g.id === groupId) {
-            return {
-              ...g,
-              formationIds: [...g.formationIds, newFormation.id],
-            };
-          }
-          return g;
-        })
-      );
-
-      // Activate the new formation
-      setActiveFormationId(newFormation.id);
-
-      return newFormation.id;
-    },
-    [groups, formations, dancers]
-  );
-
-  // Update a formation
-  const updateFormation = useCallback((formationId, updatedData) => {
-    setFormations((prev) =>
-      prev.map((formation) => {
-        if (formation.id === formationId) {
-          return {
-            ...formation,
-            ...updatedData,
-          };
-        }
-        return formation;
-      })
+    const transitionEndBeat = Math.min(
+      transitionStartBeat + transitionLength,
+      startBeatIndex + currentGroup.groupLength
     );
-  }, []);
 
-  // Update dancer position in a formation
-  const updateDancerPosition = useCallback(
-    (formationId, dancerId, position) => {
-      setFormations((prev) =>
-        prev.map((formation) => {
-          if (formation.id === formationId) {
-            return {
-              ...formation,
-              dancerPositions: {
-                ...formation.dancerPositions,
-                [dancerId]: {
-                  ...formation.dancerPositions[dancerId],
-                  ...position,
-                },
-              },
-            };
-          }
-          return formation;
-        })
+    if (transitionStartBeat >= beatTimestamps.length) return;
+
+    const transitionStartTime =
+      beatTimestamps[Math.min(transitionStartBeat, beatTimestamps.length - 1)];
+    const transitionEndTime =
+      beatTimestamps[Math.min(transitionEndBeat, beatTimestamps.length - 1)];
+
+    isInTransitionRef.current =
+      currentTime >= transitionStartTime && currentTime < transitionEndTime;
+
+    if (isInTransitionRef.current) {
+      transitionProgressRef.current = Math.max(
+        0,
+        Math.min(
+          1,
+          (currentTime - transitionStartTime) /
+            (transitionEndTime - transitionStartTime)
+        )
       );
-    },
-    []
-  );
+    } else {
+      transitionProgressRef.current = currentTime >= transitionEndTime ? 1 : 0;
+    }
+  }, [currentTime, beatTimestamps, customGroups, currentFormationIndex]);
 
-  // Update dancer transition type
-  const updateDancerTransition = useCallback(
-    (formationId, dancerId, transitionType) => {
-      setFormations((prev) =>
-        prev.map((formation) => {
-          if (formation.id === formationId) {
-            return {
-              ...formation,
-              dancerPositions: {
-                ...formation.dancerPositions,
-                [dancerId]: {
-                  ...formation.dancerPositions[dancerId],
-                  transitionType,
-                },
-              },
-            };
-          }
-          return formation;
-        })
-      );
-    },
-    []
-  );
+  const applyTransitionEasing = (progress, easingType, dancerId) => {
+    const dancerEasing = dancerTransitions[dancerId];
 
-  // Add path to dancer movement
-  const addDancerPath = useCallback((formationId, dancerId, path) => {
-    setFormations((prev) =>
-      prev.map((formation) => {
-        if (formation.id === formationId) {
-          return {
-            ...formation,
-            dancerPositions: {
-              ...formation.dancerPositions,
-              [dancerId]: {
-                ...formation.dancerPositions[dancerId],
-                path,
-              },
-            },
-          };
-        }
-        return formation;
-      })
-    );
-  }, []);
+    const easing = dancerEasing || easingType || "linear";
 
-  // Remove a formation
-  const removeFormation = useCallback(
-    (formationId) => {
-      const formation = formations.find((f) => f.id === formationId);
-      if (!formation) return;
+    switch (easing) {
+      case "easeInOut":
+        return progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
-      // Can't remove the only formation in a group
-      const groupFormations = formations.filter(
-        (f) => f.groupId === formation.groupId
-      );
-      if (groupFormations.length <= 1) return;
+      case "easeIn":
+        return progress * progress;
 
-      // Remove the formation
-      setFormations((prev) => prev.filter((f) => f.id !== formationId));
+      case "easeOut":
+        return 1 - Math.pow(1 - progress, 2);
 
-      // Update the group's formationIds
-      setGroups((prev) =>
-        prev.map((group) => {
-          if (group.id === formation.groupId) {
-            return {
-              ...group,
-              formationIds: group.formationIds.filter(
-                (id) => id !== formationId
-              ),
-            };
-          }
-          return group;
-        })
-      );
+      case "delayed":
+        return progress < 0.6 ? 0 : (progress - 0.6) * 2.5;
 
-      // Activate another formation if needed
-      if (activeFormationId === formationId) {
-        // Find the next earliest formation in the group
-        const remainingFormations = formations
-          .filter(
-            (f) => f.id !== formationId && f.groupId === formation.groupId
-          )
-          .sort((a, b) => a.startBeat - b.startBeat);
+      case "early":
+        return progress > 0.4 ? 1 : progress * 2.5;
 
-        if (remainingFormations.length > 0) {
-          setActiveFormationId(remainingFormations[0].id);
+      case "bounce":
+        if (progress < 0.7) {
+          return progress * 1.4;
+        } else if (progress < 0.85) {
+          return 0.98 + Math.sin((progress - 0.7) * 20) * 0.05;
         } else {
-          setActiveFormationId(null);
+          return 1;
+        }
+
+      case "linear":
+      default:
+        return progress;
+    }
+  };
+
+  const getPositionAlongPath = (path, progress) => {
+    if (!path || path.length < 2) return path[0] || { x: 200, y: 200 };
+
+    if (path.length === 2) {
+      return {
+        x: path[0].x + (path[1].x - path[0].x) * progress,
+        y: path[0].y + (path[1].y - path[0].y) * progress,
+      };
+    }
+
+    const totalPathLength = path.length - 1;
+    const currentSegmentIndex = Math.min(
+      Math.floor(progress * totalPathLength),
+      totalPathLength - 1
+    );
+
+    const segmentProgress = progress * totalPathLength - currentSegmentIndex;
+
+    const startPoint = path[currentSegmentIndex];
+    const endPoint = path[currentSegmentIndex + 1];
+
+    if (
+      path.length % 2 === 0 &&
+      currentSegmentIndex % 2 === 0 &&
+      currentSegmentIndex + 2 < path.length
+    ) {
+      const controlPoint = path[currentSegmentIndex + 1];
+      const endPoint = path[currentSegmentIndex + 2];
+
+      const t = segmentProgress;
+      const t1 = 1 - t;
+
+      return {
+        x:
+          t1 * t1 * startPoint.x +
+          2 * t1 * t * controlPoint.x +
+          t * t * endPoint.x,
+        y:
+          t1 * t1 * startPoint.y +
+          2 * t1 * t * controlPoint.y +
+          t * t * endPoint.y,
+      };
+    }
+
+    return {
+      x: startPoint.x + (endPoint.x - startPoint.x) * segmentProgress,
+      y: startPoint.y + (endPoint.y - startPoint.y) * segmentProgress,
+    };
+  };
+
+  const getDancerPosition = (dancerId) => {
+    if (
+      activeGroupIndex !== null &&
+      formations[activeGroupIndex] &&
+      formations[activeGroupIndex][dancerId]
+    ) {
+      const pos = { ...formations[activeGroupIndex][dancerId] };
+      delete pos.path;
+      lastKnownPositions.current[dancerId] = pos;
+      return pos;
+    }
+
+    if (!formations.length || currentFormationIndex === null) {
+      return lastKnownPositions.current[dancerId] || { x: 200, y: 200 };
+    }
+
+    const currentFormation = formations[currentFormationIndex] || {};
+    const dancerData = currentFormation[dancerId];
+
+    if (!dancerData) {
+      for (let i = currentFormationIndex - 1; i >= 0; i--) {
+        if (formations[i] && formations[i][dancerId]) {
+          const pos = { ...formations[i][dancerId] };
+          delete pos.path;
+          lastKnownPositions.current[dancerId] = pos;
+          return pos;
         }
       }
-    },
-    [formations, activeFormationId]
-  );
+      return lastKnownPositions.current[dancerId] || { x: 200, y: 200 };
+    }
 
-  // Remove a group and all its formations
-  const removeGroup = useCallback(
-    (groupId) => {
-      const group = groups.find((g) => g.id === groupId);
-      if (!group) return;
+    if (!isInTransitionRef.current || currentFormationIndex === 0) {
+      const pos = { x: dancerData.x, y: dancerData.y };
+      lastKnownPositions.current[dancerId] = pos;
+      return pos;
+    }
 
-      // Remove all formations belonging to this group
-      setFormations((prev) => prev.filter((f) => f.groupId !== groupId));
+    if (dancerData.path && dancerData.path.length > 1) {
+      const easedProgress = applyTransitionEasing(
+        transitionProgressRef.current,
+        dancerData.transitionType,
+        dancerId
+      );
 
-      // Remove the group
-      setGroups((prev) => prev.filter((g) => g.id !== groupId));
+      const pos = getPositionAlongPath(dancerData.path, easedProgress);
+      lastKnownPositions.current[dancerId] = pos;
+      return pos;
+    }
 
-      // Update active references if needed
-      if (activeGroupId === groupId) {
-        setActiveGroupId(null);
-        setActiveFormationId(null);
+    const prevFormationPos = prevFormationsRef.current[dancerId];
+    if (prevFormationPos) {
+      const easedProgress = applyTransitionEasing(
+        transitionProgressRef.current,
+        dancerData.transitionType,
+        dancerId
+      );
+
+      const pos = {
+        x:
+          prevFormationPos.x +
+          (dancerData.x - prevFormationPos.x) * easedProgress,
+        y:
+          prevFormationPos.y +
+          (dancerData.y - prevFormationPos.y) * easedProgress,
+      };
+      lastKnownPositions.current[dancerId] = pos;
+      return pos;
+    }
+
+    const pos = { x: dancerData.x, y: dancerData.y };
+    lastKnownPositions.current[dancerId] = pos;
+    return pos;
+  };
+
+  const setDancerTransitionType = (dancerId, type) => {
+    setDancerTransitions((prev) => ({
+      ...prev,
+      [dancerId]: type,
+    }));
+
+    if (activeGroupIndex !== null && formations[activeGroupIndex]) {
+      const dancerData = formations[activeGroupIndex][dancerId] || {
+        x: 200,
+        y: 200,
+      };
+
+      const updatedFormation = {
+        ...formations[activeGroupIndex],
+        [dancerId]: {
+          ...dancerData,
+          transitionType: type,
+        },
+      };
+
+      onUpdateFormation(activeGroupIndex, updatedFormation);
+    }
+  };
+
+  const smoothPath = (points) => {
+    if (points.length < 3) return points;
+
+    const smoothed = [];
+    smoothed.push(points[0]);
+
+    for (let i = 0; i < points.length - 2; i += 2) {
+      const p0 = points[i];
+      const p1 = points[i + 1];
+      const p2 = i + 2 < points.length ? points[i + 2] : points[i + 1];
+
+      smoothed.push(p1);
+
+      if (i + 2 < points.length) {
+        smoothed.push(p2);
       }
-    },
-    [groups, activeGroupId]
-  );
+    }
 
-  // Jump to a specific formation in the timeline
-  const jumpToFormation = useCallback(
-    (formationId) => {
-      const formation = formations.find((f) => f.id === formationId);
-      if (!formation || !beatTimestamps.length) return;
+    if (points.length % 2 === 0) {
+      smoothed.push(points[points.length - 1]);
+    }
 
-      const beatIndex = Math.min(
-        formation.startBeat,
-        beatTimestamps.length - 1
-      );
-      const timestamp = beatTimestamps[beatIndex];
+    return smoothed;
+  };
 
-      setActiveFormationId(formationId);
-      setActiveGroupId(formation.groupId);
+  const cardinalSpline = (points, tension = 0.5) => {
+    if (points.length < 3) return points;
 
-      if (onJumpToPosition) {
-        onJumpToPosition(timestamp);
+    const result = [];
+    result.push(points[0]);
+
+    for (let i = 0; i < points.length - 2; i++) {
+      const p0 = i > 0 ? points[i - 1] : points[i];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = i + 2 < points.length ? points[i + 2] : p2;
+
+      const steps = 5;
+      for (let t = 0; t <= 1; t += 1 / steps) {
+        if (t === 0) continue;
+
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        const x =
+          0.5 *
+          (2 * p1.x +
+            (-p0.x + p2.x) * t +
+            (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+            (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3);
+
+        const y =
+          0.5 *
+          (2 * p1.y +
+            (-p0.y + p2.y) * t +
+            (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+            (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3);
+
+        result.push({ x, y });
       }
-    },
-    [formations, beatTimestamps, onJumpToPosition]
-  );
+    }
 
-  // Get the active formation
-  const getActiveFormation = useCallback(() => {
-    return formations.find((f) => f.id === activeFormationId);
-  }, [formations, activeFormationId]);
+    result.push(points[points.length - 1]);
+    return result;
+  };
 
-  // Get the active group
-  const getActiveGroup = useCallback(() => {
-    return groups.find((g) => g.id === activeGroupId);
-  }, [groups, activeGroupId]);
+  const addDancerPath = (dancerId, path, pathMode = "direct") => {
+    if (!dancerId || activeGroupIndex === null) return;
 
-  // Calculate transition progress for given formation and time
-  const getTransitionProgress = useCallback(
-    (formationId, timeOverride = null) => {
-      const formation = formations.find((f) => f.id === formationId);
-      if (!formation || !beatTimestamps.length) return 1; // Fully transitioned
+    let processedPath = path;
 
-      // Use provided time or current time
-      const time = timeOverride !== null ? timeOverride : currentTime;
+    if (path && path.length > 1) {
+      if (pathMode === "curved") {
+        processedPath = smoothPath(path);
+      } else if (pathMode === "cardinal") {
+        processedPath = cardinalSpline(path, 0.5);
+      }
 
-      // Get start time
-      const startBeatIndex = Math.min(
-        formation.startBeat,
-        beatTimestamps.length - 1
-      );
-      const startTime = beatTimestamps[startBeatIndex];
+      const targetPosition = processedPath[processedPath.length - 1];
 
-      // Get transition end time
-      const transitionEndBeatIndex = Math.min(
-        startBeatIndex + formation.transitionBeats,
-        beatTimestamps.length - 1
-      );
-      const transitionEndTime = beatTimestamps[transitionEndBeatIndex];
+      const dancerData = formations[activeGroupIndex]?.[dancerId] || {
+        x: 200,
+        y: 200,
+      };
 
-      // Calculate progress (0 to 1)
-      if (time < startTime) return 0;
-      if (time >= transitionEndTime) return 1;
+      const updatedFormation = {
+        ...formations[activeGroupIndex],
+        [dancerId]: {
+          ...dancerData,
+          x: targetPosition.x,
+          y: targetPosition.y,
+          path: processedPath,
+        },
+      };
 
-      return (time - startTime) / (transitionEndTime - startTime);
-    },
-    [formations, beatTimestamps, currentTime]
-  );
+      onUpdateFormation(activeGroupIndex, updatedFormation);
+    } else if (path === null) {
+      if (formations[activeGroupIndex]?.[dancerId]) {
+        const { path, ...dancerDataWithoutPath } =
+          formations[activeGroupIndex][dancerId];
 
-  // Return the controller interface
+        const updatedFormation = {
+          ...formations[activeGroupIndex],
+          [dancerId]: dancerDataWithoutPath,
+        };
+
+        onUpdateFormation(activeGroupIndex, updatedFormation);
+      }
+    }
+  };
+
   return {
-    groups,
-    formations,
-    activeGroupId,
-    activeFormationId,
-    addGroup,
-    addFormation,
-    updateFormation,
-    updateDancerPosition,
-    updateDancerTransition,
+    currentFormationIndex,
+    isInTransition: isInTransitionRef.current,
+    transitionProgress: transitionProgressRef.current,
+
+    getDancerPosition,
+    setDancerTransitionType,
     addDancerPath,
-    removeFormation,
-    removeGroup,
-    jumpToFormation,
-    getActiveFormation,
-    getActiveGroup,
-    getTransitionProgress,
-    setActiveGroupId,
-    setActiveFormationId,
+
+    pathUtils: {
+      smoothPath,
+      cardinalSpline,
+    },
   };
 };
 
-export default FormationController;
+export default useFormationController;

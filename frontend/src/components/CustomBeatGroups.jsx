@@ -159,7 +159,7 @@ const CustomBeatGroups = ({
                       )}
                     <button
                       onClick={(e) => {
-                        e.stopPropagation(); // Prevent triggering the group click
+                        e.stopPropagation();
                         onRemoveGroup(idx);
                       }}
                       className="remove-button"

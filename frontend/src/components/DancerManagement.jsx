@@ -32,7 +32,7 @@ const DancerManagement = ({
       name: newDancerName,
       shape: newDancerShape,
       color: newDancerColor,
-      x: 200, // Default center position
+      x: 200,
       y: 200,
     };
 
@@ -40,7 +40,6 @@ const DancerManagement = ({
     setNewDancerName("");
   };
 
-  // Render shape icon based on shape type
   const renderShapeIcon = (shape, color) => {
     switch (shape) {
       case "circle":
@@ -70,7 +69,6 @@ const DancerManagement = ({
     <div className="dancer-management">
       <h3 className="section-title">Manage Dancers</h3>
 
-      {/* Add Dancer Form */}
       <div className="add-dancer-form">
         <div className="form-row">
           <input
@@ -126,7 +124,6 @@ const DancerManagement = ({
         </button>
       </div>
 
-      {/* Dancers List */}
       <div className="dancers-list-container">
         <h4 className="list-header">Current Dancers</h4>
         {dancers.length === 0 ? (

@@ -14,8 +14,6 @@ const PlaybackControls = ({
   onSubdivisionChange,
   beatTimestamps = [],
 }) => {
-  const handleZoomIn = () => onZoomChange(currentZoom + 10);
-  const handleZoomOut = () => onZoomChange(Math.max(30, currentZoom - 10));
   const handleVolumeChange = (e) => onVolumeChange(parseFloat(e.target.value));
   const handleDecreaseOffset = () => onOffsetChange(markerOffset - 1);
   const handleIncreaseOffset = () => onOffsetChange(markerOffset + 1);
@@ -37,19 +35,6 @@ const PlaybackControls = ({
               onChange={handleVolumeChange}
             />
             <span className="volume-value">{Math.round(volume * 100)}%</span>
-          </div>
-        </div>
-
-        <div className="control-group">
-          <label className="control-label">Zoom</label>
-          <div className="zoom-controls">
-            <button onClick={handleZoomOut} className="zoom-button">
-              −
-            </button>
-            <span className="zoom-value">{currentZoom}%</span>
-            <button onClick={handleZoomIn} className="zoom-button">
-              +
-            </button>
           </div>
         </div>
       </section>

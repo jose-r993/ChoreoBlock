@@ -1,0 +1,210 @@
+.transition-controls {
+  padding: 15px;
+
+  .view-selector {
+    display: flex;
+    margin-bottom: 15px;
+
+    button {
+      flex: 1;
+      padding: 8px 12px;
+      background-color: #333;
+      border: 1px solid #555;
+      color: #ddd;
+      cursor: pointer;
+
+      &:first-child {
+        border-radius: 4px 0 0 4px;
+      }
+
+      &:last-child {
+        border-radius: 0 4px 4px 0;
+      }
+
+      &.active {
+        background-color: #0080ff;
+        border-color: #0080ff;
+        color: white;
+      }
+
+      &:hover:not(.active) {
+        background-color: #444;
+      }
+    }
+  }
+
+  .transition-content {
+    background-color: #2a2a2a;
+    border-radius: 5px;
+    padding: 15px;
+  }
+
+  .empty-state {
+    padding: 30px;
+    text-align: center;
+    color: #888;
+    font-style: italic;
+  }
+
+  // Group transition controls
+  .group-transition-controls {
+    h4 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 16px;
+      color: #eee;
+    }
+
+    .transition-settings {
+      .setting-group {
+        margin-bottom: 15px;
+
+        label {
+          display: block;
+          margin-bottom: 5px;
+          color: #ddd;
+        }
+
+        .input-with-help {
+          display: flex;
+          flex-direction: column;
+
+          input {
+            padding: 6px 10px;
+            background-color: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #eee;
+            font-size: 14px;
+
+            &:focus {
+              outline: none;
+              border-color: #0080ff;
+            }
+          }
+
+          .help-text {
+            margin-top: 3px;
+            font-size: 12px;
+            color: #888;
+          }
+        }
+      }
+    }
+
+    .timing-visualization {
+      margin-top: 20px;
+
+      .group-timeline {
+        height: 24px;
+        background-color: #333;
+        border-radius: 4px;
+        position: relative;
+        margin-bottom: 5px;
+
+        .transition-region {
+          position: absolute;
+          height: 100%;
+          background-color: rgba(0, 128, 255, 0.5);
+          top: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 2px;
+
+          span {
+            color: white;
+            font-size: 12px;
+            white-space: nowrap;
+            text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+          }
+        }
+
+        .time-indicators {
+          display: flex;
+          justify-content: space-between;
+          padding: 0 5px;
+          margin-top: 5px;
+
+          span {
+            font-size: 12px;
+            color: #aaa;
+
+            &.start {
+              margin-right: auto;
+            }
+
+            &.end {
+              margin-left: auto;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Dancer transition controls
+  .dancer-transition-controls {
+    h4 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 16px;
+      color: #eee;
+    }
+
+    .dancers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+      margin-bottom: 15px;
+
+      .dancer-transition-item {
+        background-color: #333;
+        border-radius: 4px;
+        padding: 10px;
+
+        .dancer-info {
+          display: flex;
+          align-items: center;
+          margin-bottom: 8px;
+
+          .dancer-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+          }
+
+          .dancer-name {
+            color: #eee;
+            font-size: 14px;
+          }
+        }
+
+        .dancer-transition-setting {
+          select {
+            width: 100%;
+            padding: 6px 8px;
+            background-color: #444;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #eee;
+            font-size: 14px;
+
+            &:focus {
+              outline: none;
+              border-color: #0080ff;
+            }
+          }
+
+          .has-path-label {
+            display: block;
+            margin-top: 5px;
+            font-size: 12px;
+            color: #00aaff;
+          }
+        }
+      }
+    }
+  }
+}

@@ -2,10 +2,14 @@ import React, { useState } from "react";
 import CustomBeatGroups from "./CustomBeatGroups";
 import PlaybackControls from "./PlaybackControls";
 import DancerManagement from "./DancerManagement";
+import TransitionControls from "./TransitionControls";
+import PathDrawing from "./PathDrawing";
 import "../styles/SideBar.scss";
 import volumeIcon from "../assets/volumeIcon.svg";
 import stylusIcon from "../assets/stylusIcon.svg";
 import dancerIcon from "../assets/dancerIcon.svg";
+// import transitionIcon from "../assets/transitionIcon.svg"; // Add this icon to assets
+// import pathIcon from "../assets/pathIcon.svg"; // Add this icon to assets
 
 const SideBar = ({
   currentZoom,
@@ -20,6 +24,7 @@ const SideBar = ({
   onSubdivisionChange,
   customGroups,
   onAddGroup,
+  onUpdateGroup,
   onRemoveGroup,
   onClearGroups,
   newGroupColor,
@@ -33,19 +38,23 @@ const SideBar = ({
   onJumpToPosition,
   activeGroupIndex,
   dancers,
+  formations,
   onAddDancer,
   onRemoveDancer,
   onEditDancer,
+  onUpdateFormation,
+  setDancerTransitionType,
+  onAddDancerPath,
 }) => {
-  const [activeTab, setActiveTab] = useState("beatGroups"); // Default to beat groups tab for choreography
+  const [activeTab, setActiveTab] = useState("beatGroups");
 
   const handleGroupLengthChange = (e) => {
-    const value = parseInt(e.target.value, 10) || ""; // Empty string if parsing fails
+    const value = parseInt(e.target.value, 10) || "";
     onGroupLengthChange(value);
   };
 
   const handleInitialGroupStartChange = (e) => {
-    const value = parseInt(e.target.value, 10) || 1; // Default to 1 if invalid
+    const value = parseInt(e.target.value, 10) || 1;
     onInitialGroupStartChange(value);
   };
 
@@ -100,13 +109,42 @@ const SideBar = ({
     {
       id: "dancers",
       label: "Dancers",
-      icon: dancerIcon || stylusIcon, // Fallback to stylusIcon if dancerIcon is missing
+      icon: dancerIcon || stylusIcon,
       component: (
         <DancerManagement
           dancers={dancers}
           onAddDancer={onAddDancer}
           onRemoveDancer={onRemoveDancer}
           onEditDancer={onEditDancer}
+        />
+      ),
+    },
+    {
+      id: "transitions",
+      label: "Transitions",
+      icon: stylusIcon,
+      component: (
+        <TransitionControls
+          activeGroupIndex={activeGroupIndex}
+          customGroups={customGroups}
+          formations={formations}
+          dancers={dancers}
+          onUpdateGroup={onUpdateGroup}
+          onUpdateFormation={onUpdateFormation}
+          setDancerTransitionType={setDancerTransitionType}
+        />
+      ),
+    },
+    {
+      id: "paths",
+      label: "Paths",
+      icon: dancerIcon,
+      component: (
+        <PathDrawing
+          dancers={dancers}
+          activeGroupIndex={activeGroupIndex}
+          formations={formations}
+          onAddDancerPath={onAddDancerPath}
         />
       ),
     },
