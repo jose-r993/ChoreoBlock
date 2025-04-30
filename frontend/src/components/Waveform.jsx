@@ -34,6 +34,7 @@ const Waveform = ({
 }) => {
   const containerRef = useRef(null);
   const formationsContainerRef = useRef(null);
+  const formationsScrollWrapperRef = useRef(null);
   const [duration, setDuration] = useState(0);
   const songName = audioFile ? audioFile.name.replace(/\.[^/.]+$/, "") : "";
   const regionsPluginRef = useRef(null);
@@ -42,6 +43,8 @@ const Waveform = ({
   const [dragInfo, setDragInfo] = useState(null);
   const [snapMode, setSnapMode] = useState("beats");
   const [hoverBeat, setHoverBeat] = useState(null);
+  const [waveformScrollWidth, setWaveformScrollWidth] = useState(0);
+  const [visibleRange, setVisibleRange] = useState({ start: 0, end: 0 });
 
   const [layerVisibility, setLayerVisibility] = useState({
     beatMarkers: true,
@@ -105,64 +108,61 @@ const Waveform = ({
   useEffect(() => {
     if (wavesurfer && isReady) {
       wavesurfer.setVolume(volume);
-
-      const handleZoom = (zoomValue) => {
-        const minZoom = 40;
-        if (zoomValue < minZoom) {
-          wavesurfer.zoom(minZoom);
-        }
-        setZoom(zoomValue);
-
-        setTimeout(() => {
-          if (formationsContainerRef.current) {
-            const event = new Event("resize");
-            window.dispatchEvent(event);
-          }
-        }, 50);
-      };
-
-      wavesurfer.on("zoom", handleZoom);
-
       const audioDuration = wavesurfer.getDuration();
       setDuration(audioDuration);
-
       onWavesurferInit(wavesurfer);
-
-      return () => {
-        wavesurfer.un("zoom", handleZoom);
-      };
     }
   }, [wavesurfer, isReady, volume, onWavesurferInit]);
 
   useEffect(() => {
     if (wavesurfer && isReady && zoom !== currentZoom) {
-      wavesurfer.zoom(zoom);
+      if (wavesurfer.options.minPxPerSec !== zoom && zoom > 0) {
+        wavesurfer.zoom(zoom);
+      }
     }
   }, [wavesurfer, isReady, zoom, currentZoom]);
 
   useEffect(() => {
     const handleResize = () => {
       if (wavesurfer && wavesurfer.drawer) {
-        setZoom(zoom);
+        requestAnimationFrame(() => {
+          if (wavesurfer && wavesurfer.isReady) {
+            const waveWrapper = wavesurfer.getWrapper();
+            const currentWidth = waveWrapper?.scrollWidth || 0;
+            setWaveformScrollWidth(currentWidth);
+            if (formationsContainerRef.current) {
+              formationsContainerRef.current.style.width = `${currentWidth}px`;
+            }
+            const scrollLeft = wavesurfer.getScroll();
+            if (formationsContainerRef.current) {
+              formationsContainerRef.current.style.left = `-${scrollLeft}px`;
+            }
+            if (containerRef.current) {
+              setVisibleRange({
+                start: scrollLeft,
+                end: scrollLeft + containerRef.current.offsetWidth,
+              });
+            }
+          }
+        });
       }
     };
-
     window.addEventListener("resize", handleResize);
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, [zoom, wavesurfer]);
+  }, [wavesurfer, isReady, setVisibleRange]);
 
   useEffect(() => {
     if (wavesurfer && typeof currentTime === "number") {
-      const updateTime = () => {
-        onTimeUpdate(wavesurfer.getCurrentTime());
+      const updateTime = (time) => {
+        onTimeUpdate(time);
       };
-
       wavesurfer.on("timeupdate", updateTime);
-
       return () => {
-        wavesurfer.un("timeupdate", updateTime);
+        if (wavesurfer) {
+          wavesurfer.un("timeupdate", updateTime);
+        }
       };
     }
   }, [wavesurfer, onTimeUpdate]);
@@ -179,11 +179,9 @@ const Waveform = ({
 
   const findClosestBeatIndex = useCallback(
     (time) => {
-      if (!beatTimestamps.length) return 0;
-
+      if (!beatTimestamps || beatTimestamps.length === 0) return 0;
       let closestIndex = 0;
       let minDifference = Math.abs(beatTimestamps[0] - time);
-
       for (let i = 1; i < beatTimestamps.length; i++) {
         const difference = Math.abs(beatTimestamps[i] - time);
         if (difference < minDifference) {
@@ -191,59 +189,61 @@ const Waveform = ({
           closestIndex = i;
         }
       }
-
       return closestIndex;
     },
     [beatTimestamps]
   );
 
   const beatToPosition = useCallback(
-    (beatIndex) => {
-      if (!containerRef.current || !duration || beatTimestamps.length === 0) {
-        return 0;
-      }
-
-      const idx = Math.min(Math.max(0, beatIndex), beatTimestamps.length - 1);
-      const time = beatTimestamps[idx];
-
-      const fullWidth = containerRef.current.scrollWidth;
-
-      return (time / duration) * fullWidth;
-    },
-    [beatTimestamps, containerRef, duration]
-  );
-
-  const positionToBeat = useCallback(
-    (px) => {
+    (beatIndex, totalWidth) => {
       if (
-        !containerRef.current ||
-        duration === 0 ||
+        !totalWidth ||
+        !duration ||
+        !beatTimestamps ||
         beatTimestamps.length === 0
       ) {
         return 0;
       }
-      const fullWidth = containerRef.current.scrollWidth;
-      const time = (px / fullWidth) * duration;
+      const idx = Math.min(Math.max(0, beatIndex), beatTimestamps.length - 1);
+      const time = beatTimestamps[idx] ?? 0;
+      return (time / duration) * totalWidth;
+    },
+    [beatTimestamps, duration]
+  );
+
+  const positionToBeat = useCallback(
+    (px, totalWidth) => {
+      if (
+        !totalWidth ||
+        duration === 0 ||
+        !beatTimestamps ||
+        beatTimestamps.length === 0
+      ) {
+        return 0;
+      }
+      const time = (px / totalWidth) * duration;
       return findClosestBeatIndex(time);
     },
-    [beatTimestamps, containerRef, duration, findClosestBeatIndex]
+    [beatTimestamps, duration, findClosestBeatIndex]
   );
 
   const drawAllRegions = useCallback(() => {
-    if (!regionsPluginRef.current || !wavesurfer || !isReady) return;
+    if (!regionsPluginRef.current || !wavesurfer || !isReady || !duration)
+      return;
 
     try {
       clearAllRegions();
-
       const beatMap = new Array(beatTimestamps.length).fill(null);
-      const transitionMap = new Array(beatTimestamps.length).fill(false);
-
       customGroups.forEach((group, groupIndex) => {
         const startBeat = group.startBeat;
         const endBeat = startBeat + group.groupLength;
         const transStartBeat =
-          group.transitionStartBeat || startBeat + group.groupLength - 2;
-        const transEndBeat = transStartBeat + (group.transitionLength || 2);
+          group.transitionStartBeat !== undefined
+            ? group.transitionStartBeat
+            : startBeat + group.groupLength - 2;
+        const transEndBeat =
+          transStartBeat +
+          (group.transitionLength !== undefined ? group.transitionLength : 2);
 
         for (let i = startBeat; i < endBeat && i < beatTimestamps.length; i++) {
           beatMap[i] = {
@@ -251,14 +251,10 @@ const Waveform = ({
             color: group.color,
             isTransition: i >= transStartBeat && i < transEndBeat,
           };
-
-          if (i >= transStartBeat && i < transEndBeat) {
-            transitionMap[i] = true;
-          }
         }
       });
 
-      if (layerVisibility.beatMarkers) {
+      if (layerVisibility.beatMarkers && beatTimestamps) {
         beatTimestamps.forEach((time, index) => {
           if (index % subdivisionFactor !== 0) return;
 
@@ -286,9 +282,10 @@ const Waveform = ({
               label = `${defaultGroupIndex + 1}`;
             }
           }
+
           const region = regionsPluginRef.current.addRegion({
-            start: time,
-            end: time + 0.1,
+            start: time - 0.04,
+            end: time + 0.04,
             color: color + (isTransition ? "AA" : "55"),
             drag: false,
             resize: false,
@@ -303,7 +300,6 @@ const Waveform = ({
             if (labelEl) {
               labelEl.innerHTML = `<span class="marker-label">${label}</span>`;
             }
-
             if (isTransition) {
               region.element.classList.add("transition-beat");
             }
@@ -311,7 +307,7 @@ const Waveform = ({
 
           if (region) {
             region.on("click", () => {
-              if (wavesurfer) {
+              if (wavesurfer && duration > 0) {
                 wavesurfer.seekTo(time / duration);
               }
             });
@@ -328,135 +324,77 @@ const Waveform = ({
     clearAllRegions,
     beatTimestamps,
     customGroups,
-    activeGroupIndex,
-    groupSize,
-    markerOffset,
-    subdivisionFactor,
-    duration,
     layerVisibility,
+    subdivisionFactor,
+    markerOffset,
+    groupSize,
+    duration,
   ]);
 
   useEffect(() => {
-    if (isReady && beatTimestamps.length > 0 && wavesurfer) {
+    if (isReady && beatTimestamps?.length > 0 && wavesurfer) {
       drawAllRegions();
     }
   }, [
     isReady,
     beatTimestamps,
     customGroups,
-    activeGroupIndex,
     drawAllRegions,
     wavesurfer,
     layerVisibility,
   ]);
 
   useEffect(() => {
-    if (isReady && wavesurfer && customGroups.length > 0) {
-      drawAllRegions();
-    }
-  }, [customGroups.length, isReady, wavesurfer, drawAllRegions]);
-
-  useEffect(() => {
-    if (!wavesurfer || !isReady) return;
-    const waveContainer = containerRef.current;
-    const formationsEl = formationsContainerRef.current;
-    if (!waveContainer || !formationsEl) return;
-
-    const handleZoom = () => {
-      const waveEl = containerRef.current;
-      const formationsEl = formationsContainerRef.current;
-      const fullWidth =
-        waveEl.querySelector(".wave")?.scrollWidth ?? waveEl.scrollWidth;
-      formationsEl.style.width = fullWidth + "px";
-    };
-
-    wavesurfer.on("zoom", handleZoom);
-    handleZoom();
-    return () => wavesurfer.un("zoom", handleZoom);
-  }, [wavesurfer, isReady]);
-
-  useEffect(() => {
-    if (!wavesurfer || !isReady) return;
-    const waveContainer = containerRef.current;
-    const formationsEl = formationsContainerRef.current;
-    if (!waveContainer || !formationsEl) return;
-
-    const handleWaveScroll = () => {
-      formationsEl.scrollLeft = waveContainer.scrollLeft;
-    };
-    const handleFormationsScroll = () => {
-      waveContainer.scrollLeft = formationsEl.scrollLeft;
-    };
-
-    // ← use waveContainer, not waveEl, and hook up your named handlers
-    waveContainer.addEventListener("scroll", handleWaveScroll);
-    formationsEl.addEventListener("scroll", handleFormationsScroll);
-
-    return () => {
-      waveContainer.removeEventListener("scroll", handleWaveScroll);
-      formationsEl.removeEventListener("scroll", handleFormationsScroll);
-    };
-  }, [wavesurfer, isReady]);
-
-  useEffect(() => {
     if (!wavesurfer || !isReady || !regionsPluginRef.current) return;
-
     const handleRegionUpdated = (region) => {
       if (!region.data) return;
-
       const { type, groupIndex } = region.data;
       if (type !== "formation" && type !== "transition") return;
-
       const group = customGroups[groupIndex];
       if (!group) return;
-
       const startTime = region.start;
       const endTime = region.end;
 
+      let startBeat = 0;
+      let endBeat = 0;
+      if (snapMode === "beats") {
+        startBeat = findClosestBeatIndex(startTime);
+        endBeat = findClosestBeatIndex(endTime);
+        if (endBeat - startBeat < 2) endBeat = startBeat + 2;
+      } else {
+        startBeat = findClosestBeatIndex(startTime);
+        const beatDuration =
+          beatTimestamps && beatTimestamps.length > 1
+            ? beatTimestamps[1] - beatTimestamps[0]
+            : 0.1;
+        const formationDuration = endTime - startTime;
+        const estimatedBeats = Math.max(
+          2,
+          Math.round(formationDuration / beatDuration)
+        );
+        endBeat = startBeat + estimatedBeats;
+        if (beatTimestamps && endBeat >= beatTimestamps.length)
+          endBeat = beatTimestamps.length - 1;
+      }
+
+      const groupLength = endBeat - startBeat;
+      let newTransitionStartBeat;
+      let newTransitionLength;
+
       if (type === "formation") {
-        let startBeat = 0;
-        let endBeat = 0;
-
-        if (snapMode === "beats") {
-          startBeat = findClosestBeatIndex(startTime);
-          endBeat = findClosestBeatIndex(endTime);
-
-          if (endBeat - startBeat < 2) {
-            endBeat = startBeat + 2;
-          }
-        } else {
-          startBeat = findClosestBeatIndex(startTime);
-          const beatDuration = beatTimestamps[1] - beatTimestamps[0];
-          const formationDuration = endTime - startTime;
-          const estimatedBeats = Math.max(
-            2,
-            Math.round(formationDuration / beatDuration)
-          );
-          endBeat = startBeat + estimatedBeats;
-
-          if (endBeat >= beatTimestamps.length) {
-            endBeat = beatTimestamps.length - 1;
-          }
-        }
-
-        const groupLength = endBeat - startBeat;
-
-        let newTransitionStartBeat;
-        let newTransitionLength;
-
         if (group.transitionStartBeat !== undefined) {
           const oldRelativePosition =
-            (group.transitionStartBeat - group.startBeat) / group.groupLength;
-
+            group.groupLength > 0
+              ? (group.transitionStartBeat - group.startBeat) /
+                group.groupLength
+              : 0;
           newTransitionStartBeat = Math.round(
             startBeat + groupLength * oldRelativePosition
           );
-
           newTransitionStartBeat = Math.max(
             startBeat,
             Math.min(newTransitionStartBeat, startBeat + groupLength - 1)
           );
-
           newTransitionLength = Math.min(
             group.transitionLength || 2,
             startBeat + groupLength - newTransitionStartBeat
@@ -465,26 +403,26 @@ const Waveform = ({
           newTransitionStartBeat = startBeat + groupLength - 2;
           newTransitionLength = 2;
         }
-
         const updatedGroup = {
           ...group,
           startBeat,
           groupLength,
           transitionStartBeat: newTransitionStartBeat,
-          transitionLength: newTransitionLength,
+          transitionLength: Math.max(1, newTransitionLength),
         };
-
         onUpdateGroup(groupIndex, updatedGroup);
       } else if (type === "transition") {
         let transitionStartBeat = 0;
         let transitionEndBeat = 0;
-
         if (snapMode === "beats") {
           transitionStartBeat = findClosestBeatIndex(startTime);
           transitionEndBeat = findClosestBeatIndex(endTime);
         } else {
           transitionStartBeat = findClosestBeatIndex(startTime);
-          const beatDuration = beatTimestamps[1] - beatTimestamps[0];
+          const beatDuration =
+            beatTimestamps && beatTimestamps.length > 1
+              ? beatTimestamps[1] - beatTimestamps[0]
+              : 0.1;
           const transitionDuration = endTime - startTime;
           const estimatedBeats = Math.max(
             1,
@@ -492,39 +430,29 @@ const Waveform = ({
           );
           transitionEndBeat = transitionStartBeat + estimatedBeats;
         }
-
         transitionStartBeat = Math.max(group.startBeat, transitionStartBeat);
         transitionEndBeat = Math.min(
           group.startBeat + group.groupLength,
           transitionEndBeat
         );
-
-        if (transitionEndBeat - transitionStartBeat < 1) {
+        if (transitionEndBeat - transitionStartBeat < 1)
           transitionEndBeat = transitionStartBeat + 1;
-        }
-
         const updatedGroup = {
           ...group,
           transitionStartBeat: transitionStartBeat,
           transitionLength: transitionEndBeat - transitionStartBeat,
         };
-
         onUpdateGroup(groupIndex, updatedGroup);
       }
     };
-
     const handleRegionClick = (region) => {
       if (!region.data) return;
-
       const { type, groupIndex } = region.data;
-      if (type === "formation" || type === "transition") {
+      if (type === "formation" || type === "transition")
         onSelectGroup(groupIndex);
-      }
     };
-
     regionsPluginRef.current.on("region-updated", handleRegionUpdated);
     regionsPluginRef.current.on("region-clicked", handleRegionClick);
-
     return () => {
       if (regionsPluginRef.current) {
         regionsPluginRef.current.un("region-updated", handleRegionUpdated);
@@ -545,39 +473,28 @@ const Waveform = ({
 
   const handleAddFormation = useCallback(() => {
     let lastEndBeat = 0;
-
     if (customGroups.length > 0) {
       customGroups.forEach((group) => {
         const endBeat = group.startBeat + group.groupLength;
-        if (endBeat > lastEndBeat) {
-          lastEndBeat = endBeat;
-        }
+        if (endBeat > lastEndBeat) lastEndBeat = endBeat;
       });
     }
-
     let startBeat = lastEndBeat;
-
     if (wavesurfer) {
-      const currentTime = wavesurfer.getCurrentTime();
-      const currentBeat = findClosestBeatIndex(currentTime);
-      if (currentBeat > lastEndBeat) {
-        startBeat = currentBeat;
-      }
+      const currentTimeVal = wavesurfer.getCurrentTime();
+      const currentBeat = findClosestBeatIndex(currentTimeVal);
+      if (currentBeat > lastEndBeat) startBeat = currentBeat;
     }
-
-    if (startBeat >= beatTimestamps.length - 8) {
+    if (beatTimestamps && startBeat >= beatTimestamps.length - 8) {
       startBeat = Math.max(0, beatTimestamps.length - 9);
     }
-
     let groupLength = 8;
-    if (startBeat + groupLength >= beatTimestamps.length) {
+    if (beatTimestamps && startBeat + groupLength >= beatTimestamps.length) {
       groupLength = beatTimestamps.length - startBeat - 1;
       if (groupLength < 2) groupLength = 2;
     }
-
     const transitionStartBeat = startBeat + groupLength - 2;
     const transitionLength = 2;
-
     const MARKER_COLORS = [
       "#FF5500",
       "#00AAFF",
@@ -585,7 +502,6 @@ const Waveform = ({
       "#FFAA00",
       "#FF00AA",
     ];
-
     const newGroup = {
       startBeat,
       groupLength,
@@ -594,34 +510,29 @@ const Waveform = ({
       transitionLength,
       groupName: `Formation ${customGroups.length + 1}`,
     };
-
     onAddGroup(newGroup);
-
-    if (wavesurfer && isReady) {
-      requestAnimationFrame(() => {
-        drawAllRegions();
-      });
-    }
   }, [
     customGroups,
-    beatTimestamps.length,
+    beatTimestamps,
     onAddGroup,
     wavesurfer,
     findClosestBeatIndex,
     isReady,
-    drawAllRegions,
   ]);
 
   const handleDragStart = useCallback(
     (e, groupIndex, edge) => {
       e.stopPropagation();
-
-      if (!formationsContainerRef.current) return;
-
-      const container = formationsContainerRef.current;
-      const containerRect = container.getBoundingClientRect();
-      const x = e.clientX - containerRect.left;
-
+      if (
+        !formationsContainerRef.current ||
+        !containerRef.current ||
+        !customGroups[groupIndex]
+      )
+        return;
+      const formationsDiv = formationsContainerRef.current;
+      const containerRect = formationsDiv.getBoundingClientRect();
+      const x =
+        e.clientX - containerRect.left + containerRef.current.scrollLeft;
       setIsDragging(true);
       setDragInfo({
         groupIndex,
@@ -629,8 +540,16 @@ const Waveform = ({
         startX: x,
         startBeat: customGroups[groupIndex].startBeat,
         groupLength: customGroups[groupIndex].groupLength,
-        transitionStartBeat: customGroups[groupIndex].transitionStartBeat || 0,
-        transitionLength: customGroups[groupIndex].transitionLength || 2,
+        transitionStartBeat:
+          customGroups[groupIndex].transitionStartBeat !== undefined
+            ? customGroups[groupIndex].transitionStartBeat
+            : customGroups[groupIndex].startBeat +
+              customGroups[groupIndex].groupLength -
+              2,
+        transitionLength:
+          customGroups[groupIndex].transitionLength !== undefined
+            ? customGroups[groupIndex].transitionLength
+            : 2,
       });
     },
     [customGroups]
@@ -640,12 +559,13 @@ const Waveform = ({
     (e, groupIndex) => {
       e.stopPropagation();
       onSelectGroup(groupIndex);
-
       if (wavesurfer && customGroups[groupIndex]) {
         const beatIndex = customGroups[groupIndex].startBeat;
-        if (beatTimestamps[beatIndex]) {
+        if (beatTimestamps && beatTimestamps[beatIndex] !== undefined) {
           const time = beatTimestamps[beatIndex];
-          wavesurfer.seekTo(time / duration);
+          if (duration > 0) {
+            wavesurfer.seekTo(time / duration);
+          }
         }
       }
     },
@@ -654,88 +574,127 @@ const Waveform = ({
 
   useEffect(() => {
     const handleMouseMove = (e) => {
-      if (!isDragging || !dragInfo || !wavesurfer) return;
+      if (
+        !isDragging ||
+        !dragInfo ||
+        !wavesurfer ||
+        !containerRef.current ||
+        !formationsContainerRef.current
+      )
+        return;
 
-      const container = formationsContainerRef.current;
-      const containerRect = container.getBoundingClientRect();
-      const x = e.clientX - containerRect.left;
-      const deltaX = x - dragInfo.startX;
+      const waveWrapper = wavesurfer.getWrapper();
+      const totalWidth = waveWrapper?.scrollWidth;
+      if (!totalWidth) return;
 
-      const deltaBeat =
-        snapMode === "beats"
-          ? positionToBeat(x) - positionToBeat(dragInfo.startX)
-          : Math.round(deltaX / 10);
+      const formationsDiv = formationsContainerRef.current;
+      const containerRect = formationsDiv.getBoundingClientRect();
+      const x =
+        e.clientX - containerRect.left + containerRef.current.scrollLeft;
+
+      const currentBeat = positionToBeat(x, totalWidth);
+      const startBeatDrag = positionToBeat(dragInfo.startX, totalWidth);
+      let deltaBeat = currentBeat - startBeatDrag;
+
+      if (snapMode === "beats") {
+        deltaBeat =
+          findClosestBeatIndex((x / totalWidth) * duration) -
+          findClosestBeatIndex((dragInfo.startX / totalWidth) * duration);
+      }
 
       const group = customGroups[dragInfo.groupIndex];
       if (!group) return;
 
       let newStartBeat = group.startBeat;
       let newGroupLength = group.groupLength;
-      let newTransitionStartBeat =
-        group.transitionStartBeat || group.startBeat + group.groupLength - 2;
-      let newTransitionLength = group.transitionLength || 2;
+      let newTransitionStartBeat = group.transitionStartBeat;
+      let newTransitionLength = group.transitionLength;
 
       if (dragInfo.edge === "start") {
         newStartBeat = Math.max(0, dragInfo.startBeat + deltaBeat);
-
-        if (newStartBeat + 2 >= group.startBeat + group.groupLength) {
-          newStartBeat = group.startBeat + group.groupLength - 2;
-        }
-
-        newGroupLength = group.startBeat + group.groupLength - newStartBeat;
-
+        const endBeat = dragInfo.startBeat + dragInfo.groupLength;
+        if (newStartBeat + 2 > endBeat) newStartBeat = endBeat - 2;
+        newGroupLength = endBeat - newStartBeat;
+        const oldTransitionStartOffset =
+          dragInfo.transitionStartBeat - dragInfo.startBeat;
+        newTransitionStartBeat = newStartBeat + oldTransitionStartOffset;
+        newTransitionLength = dragInfo.transitionLength;
         if (newTransitionStartBeat < newStartBeat) {
+          newTransitionLength -= newStartBeat - newTransitionStartBeat;
           newTransitionStartBeat = newStartBeat;
+        }
+        if (
+          newTransitionStartBeat + newTransitionLength >
+          newStartBeat + newGroupLength
+        ) {
           newTransitionLength =
             newStartBeat + newGroupLength - newTransitionStartBeat;
         }
       } else if (dragInfo.edge === "end") {
         newGroupLength = Math.max(2, dragInfo.groupLength + deltaBeat);
-
-        if (newStartBeat + newGroupLength > beatTimestamps.length) {
-          newGroupLength = beatTimestamps.length - newStartBeat;
+        if (
+          beatTimestamps &&
+          dragInfo.startBeat + newGroupLength >= beatTimestamps.length
+        ) {
+          newGroupLength = beatTimestamps.length - dragInfo.startBeat - 1;
         }
-
+        newStartBeat = dragInfo.startBeat;
+        newTransitionStartBeat = dragInfo.transitionStartBeat;
+        newTransitionLength = dragInfo.transitionLength;
         if (
           newTransitionStartBeat + newTransitionLength >
           newStartBeat + newGroupLength
         ) {
-          newTransitionStartBeat =
-            newStartBeat + newGroupLength - newTransitionLength;
+          newTransitionLength =
+            newStartBeat + newGroupLength - newTransitionStartBeat;
         }
       } else if (dragInfo.edge === "transition-start") {
+        newStartBeat = dragInfo.startBeat;
+        newGroupLength = dragInfo.groupLength;
+        const originalTransitionEndBeat =
+          dragInfo.transitionStartBeat + dragInfo.transitionLength;
         newTransitionStartBeat = Math.max(
           newStartBeat,
           dragInfo.transitionStartBeat + deltaBeat
         );
-
-        if (newTransitionStartBeat + 1 >= newStartBeat + newGroupLength) {
-          newTransitionStartBeat = newStartBeat + newGroupLength - 1;
+        if (newTransitionStartBeat + 1 > originalTransitionEndBeat) {
+          newTransitionStartBeat = originalTransitionEndBeat - 1;
         }
-
         newTransitionLength =
-          newStartBeat + newGroupLength - newTransitionStartBeat;
+          originalTransitionEndBeat - newTransitionStartBeat;
       } else if (dragInfo.edge === "transition-end") {
-        const newEndBeat = Math.min(
+        newStartBeat = dragInfo.startBeat;
+        newGroupLength = dragInfo.groupLength;
+        newTransitionStartBeat = dragInfo.transitionStartBeat;
+        const newTransitionEndBeat = Math.min(
           newStartBeat + newGroupLength,
           dragInfo.transitionStartBeat + dragInfo.transitionLength + deltaBeat
         );
-
-        newTransitionLength = Math.max(1, newEndBeat - newTransitionStartBeat);
+        newTransitionLength = Math.max(
+          1,
+          newTransitionEndBeat - newTransitionStartBeat
+        );
       }
 
-      let willOverlap = false;
-      const newEndBeat = newStartBeat + newGroupLength;
+      newTransitionLength = Math.max(1, newTransitionLength);
+      newTransitionStartBeat = Math.max(newStartBeat, newTransitionStartBeat);
+      newTransitionLength = Math.min(
+        newTransitionLength,
+        newStartBeat + newGroupLength - newTransitionStartBeat
+      );
+      newTransitionStartBeat = Math.min(
+        newTransitionStartBeat,
+        newStartBeat + newGroupLength - newTransitionLength
+      );
 
+      let willOverlap = false;
+      const newEndBeatCheck = newStartBeat + newGroupLength;
       customGroups.forEach((otherGroup, otherIndex) => {
         if (otherIndex === dragInfo.groupIndex) return;
-
         const otherStart = otherGroup.startBeat;
         const otherEnd = otherStart + otherGroup.groupLength;
-
-        if (newStartBeat < otherEnd && otherStart < newEndBeat) {
+        if (newStartBeat < otherEnd && otherStart < newEndBeatCheck)
           willOverlap = true;
-        }
       });
 
       if (!willOverlap) {
@@ -746,21 +705,23 @@ const Waveform = ({
           transitionStartBeat: newTransitionStartBeat,
           transitionLength: newTransitionLength,
         };
-
-        onUpdateGroup(dragInfo.groupIndex, updatedGroup);
+        requestAnimationFrame(() => {
+          onUpdateGroup(dragInfo.groupIndex, updatedGroup);
+        });
       }
     };
 
     const handleMouseUp = () => {
-      setIsDragging(false);
-      setDragInfo(null);
+      if (isDragging) {
+        setIsDragging(false);
+        setDragInfo(null);
+      }
     };
 
     if (isDragging) {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
     }
-
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
@@ -774,51 +735,154 @@ const Waveform = ({
     positionToBeat,
     wavesurfer,
     beatTimestamps,
+    findClosestBeatIndex,
+    duration,
   ]);
 
   const renderBeatTooltip = useCallback(() => {
     if (!hoverBeat) return null;
-
     return (
       <div className="beat-tooltip">
-        Beats {hoverBeat.start + 1} - {hoverBeat.end}
+        Beats {hoverBeat.start + 1} - {hoverBeat.end + 1}
       </div>
     );
   }, [hoverBeat]);
 
   const toggleLayerVisibility = useCallback((layer) => {
-    setLayerVisibility((prev) => ({
-      ...prev,
-      [layer]: !prev[layer],
-    }));
+    setLayerVisibility((prev) => ({ ...prev, [layer]: !prev[layer] }));
   }, []);
 
-  const renderFormations = useCallback(() => {
-    if (!wavesurfer || !isReady) return null;
+  useEffect(() => {
+    if (wavesurfer && isReady) {
+      const updateWidthAndInitialPosition = () => {
+        requestAnimationFrame(() => {
+          const waveWrapper = wavesurfer.getWrapper();
+          const currentWidth = waveWrapper?.scrollWidth || 0;
+          setWaveformScrollWidth(currentWidth);
 
-    return customGroups.map((group, index) => {
-      const startPosition = beatToPosition(group.startBeat);
-      const endPosition = beatToPosition(group.startBeat + group.groupLength);
-      const width = Math.max(endPosition - startPosition, 30);
+          if (formationsContainerRef.current) {
+            formationsContainerRef.current.style.width = `${currentWidth}px`;
+          }
+
+          if (containerRef.current && formationsContainerRef.current) {
+            const scrollLeft = wavesurfer.getScroll();
+            formationsContainerRef.current.style.transform = `translateX(-${scrollLeft}px)`;
+
+            setVisibleRange({
+              start: scrollLeft,
+              end: scrollLeft + (containerRef.current.offsetWidth || 0),
+            });
+          }
+        });
+      };
+
+      const handleZoom = () => {
+        const currentPxPerSec = wavesurfer?.options?.minPxPerSec;
+        if (currentPxPerSec) {
+          setZoom(currentPxPerSec);
+        }
+        updateWidthAndInitialPosition();
+      };
+
+      wavesurfer.on("zoom", handleZoom);
+      wavesurfer.on("ready", updateWidthAndInitialPosition);
+      wavesurfer.on("redraw", updateWidthAndInitialPosition);
+
+      const initialSyncTimeout = setTimeout(updateWidthAndInitialPosition, 0);
+
+      return () => {
+        clearTimeout(initialSyncTimeout);
+        if (wavesurfer) {
+          wavesurfer.un("zoom", handleZoom);
+          wavesurfer.un("ready", updateWidthAndInitialPosition);
+          wavesurfer.un("redraw", updateWidthAndInitialPosition);
+        }
+      };
+    }
+  }, [wavesurfer, isReady, setZoom, setVisibleRange]);
+
+  useEffect(() => {
+    if (!wavesurfer || !isReady) return;
+
+    let rafId = null;
+    const handleWavesurferScroll = (scrollLeft) => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(() => {
+        if (formationsContainerRef.current && containerRef.current) {
+          formationsContainerRef.current.style.transform = `translateX(-${scrollLeft}px)`;
+
+          setVisibleRange({
+            start: scrollLeft,
+            end: scrollLeft + containerRef.current.offsetWidth,
+          });
+        }
+      });
+    };
+
+    wavesurfer.on("scroll", handleWavesurferScroll);
+
+    if (containerRef.current) {
+      handleWavesurferScroll(containerRef.current.scrollLeft);
+    }
+
+    return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+      if (wavesurfer) {
+        wavesurfer.un("scroll", handleWavesurferScroll);
+      }
+    };
+  }, [wavesurfer, isReady, setVisibleRange]);
+
+  const renderFormations = useCallback(() => {
+    if (
+      !wavesurfer ||
+      !isReady ||
+      !formationsContainerRef.current ||
+      !containerRef.current ||
+      waveformScrollWidth === 0
+    )
+      return null;
+
+    return customGroups.map((group, originalIndex) => {
+      const startPosition = beatToPosition(
+        group.startBeat,
+        waveformScrollWidth
+      );
+      const endPosition = beatToPosition(
+        group.startBeat + group.groupLength,
+        waveformScrollWidth
+      );
+      const width = Math.max(endPosition - startPosition, 2);
 
       const transitionStartBeat =
         group.transitionStartBeat !== undefined
           ? group.transitionStartBeat
           : group.startBeat + group.groupLength - 2;
-
       const transitionLength =
         group.transitionLength !== undefined ? group.transitionLength : 2;
 
-      const transitionStartPosition = beatToPosition(transitionStartBeat);
-      const transitionWidth =
-        beatToPosition(transitionStartBeat + transitionLength) -
-        transitionStartPosition;
+      const transitionStartPosition = beatToPosition(
+        transitionStartBeat,
+        waveformScrollWidth
+      );
+      const transitionEndPosition = beatToPosition(
+        transitionStartBeat + transitionLength,
+        waveformScrollWidth
+      );
+      const transitionWidth = Math.max(
+        transitionEndPosition - transitionStartPosition,
+        2
+      );
 
       return (
         <div
-          key={`formation-${index}`}
+          key={`formation-${originalIndex}-${group.startBeat}`}
           className={`formation-group ${
-            activeGroupIndex === index ? "active" : ""
+            activeGroupIndex === originalIndex ? "active" : ""
           }`}
           style={{
             left: `${startPosition}px`,
@@ -826,21 +890,22 @@ const Waveform = ({
             backgroundColor: `${group.color}25`,
             borderColor: group.color,
             opacity: layerVisibility.formationBoundaries ? 1 : 0.3,
+            position: "absolute",
           }}
-          onClick={(e) => handleFormationClick(e, index)}
+          onClick={(e) => handleFormationClick(e, originalIndex)}
         >
           <div className="formation-content">
             <span
               className="formation-name"
-              style={{
-                display: layerVisibility.labels ? "block" : "none",
-              }}
+              style={{ display: layerVisibility.labels ? "block" : "none" }}
             >
-              {group.groupName || `Formation ${index + 1}`}
+              {group.groupName || `Formation ${originalIndex + 1}`}
             </span>
           </div>
-
-          <div className="formation-transition">
+          <div
+            className="formation-transition"
+            style={{ display: layerVisibility.transitions ? "block" : "none" }}
+          >
             <div
               className="transition-indicator"
               style={{
@@ -850,7 +915,7 @@ const Waveform = ({
                 height: "20px",
                 top: "26px",
                 backgroundColor: group.color,
-                opacity: layerVisibility.transitions ? 0.7 : 0.2,
+                opacity: 0.7,
                 borderRadius: "4px",
                 pointerEvents: "all",
                 cursor: "pointer",
@@ -858,48 +923,45 @@ const Waveform = ({
               onMouseEnter={() =>
                 setHoverBeat({
                   start: transitionStartBeat,
-                  end: transitionStartBeat + transitionLength,
-                  groupIndex: index,
+                  end: transitionStartBeat + transitionLength - 1,
+                  groupIndex: originalIndex,
                 })
               }
               onMouseLeave={() => setHoverBeat(null)}
             >
               <div
                 className="transition-content"
-                style={{
-                  display: layerVisibility.labels ? "block" : "none",
-                }}
+                style={{ display: layerVisibility.labels ? "block" : "none" }}
               >
-                <span>For.</span>
+                <span>Tr</span>
               </div>
-
               <div
                 className="handle-transition-start"
                 onMouseDown={(e) =>
-                  handleDragStart(e, index, "transition-start")
+                  handleDragStart(e, originalIndex, "transition-start")
                 }
                 title={`Beat ${transitionStartBeat + 1}`}
               ></div>
-
               <div
                 className="handle-transition-end"
-                onMouseDown={(e) => handleDragStart(e, index, "transition-end")}
+                onMouseDown={(e) =>
+                  handleDragStart(e, originalIndex, "transition-end")
+                }
                 title={`Beat ${transitionStartBeat + transitionLength}`}
               ></div>
             </div>
           </div>
-
           <div
             className="handle handle-start"
-            onMouseDown={(e) => handleDragStart(e, index, "start")}
+            onMouseDown={(e) => handleDragStart(e, originalIndex, "start")}
           ></div>
-
           <div
             className="handle handle-end"
-            onMouseDown={(e) => handleDragStart(e, index, "end")}
+            onMouseDown={(e) => handleDragStart(e, originalIndex, "end")}
           ></div>
-
-          {hoverBeat && hoverBeat.groupIndex === index && renderBeatTooltip()}
+          {hoverBeat &&
+            hoverBeat.groupIndex === originalIndex &&
+            renderBeatTooltip()}
         </div>
       );
     });
@@ -915,6 +977,7 @@ const Waveform = ({
     setHoverBeat,
     hoverBeat,
     renderBeatTooltip,
+    waveformScrollWidth,
   ]);
 
   return (
@@ -927,7 +990,6 @@ const Waveform = ({
         bpm={bpm}
         songName={songName}
       />
-
       <div className="formations-regions-header">
         <div className="snap-options">
           <label className="snap-radio">
@@ -951,7 +1013,6 @@ const Waveform = ({
             Free Adjustment
           </label>
         </div>
-
         <div className="layer-controls">
           <button
             className={`layer-toggle ${
@@ -988,7 +1049,6 @@ const Waveform = ({
             <span>Labels</span>
           </button>
         </div>
-
         <span className="formation-info">
           {customGroups.length > 0 &&
           activeGroupIndex !== null &&
@@ -998,21 +1058,26 @@ const Waveform = ({
               }-${
                 customGroups[activeGroupIndex].startBeat +
                 customGroups[activeGroupIndex].groupLength
-              }, 
- Transition: Beats ${customGroups[activeGroupIndex].transitionStartBeat + 1}-${
+              }, Transition: Beats ${
+                customGroups[activeGroupIndex].transitionStartBeat + 1
+              }-${
                 customGroups[activeGroupIndex].transitionStartBeat +
                 customGroups[activeGroupIndex].transitionLength
               }`
             : ""}
         </span>
       </div>
-
       <div className="waveform-container">
-        <div className="formations-regions" ref={formationsContainerRef}>
-          {renderFormations()}
-          <button className="add-formation-btn" onClick={handleAddFormation}>
-            <span>+</span>
-          </button>
+        <div
+          className="formations-scroll-wrapper"
+          ref={formationsScrollWrapperRef}
+        >
+          <div className="formations-regions" ref={formationsContainerRef}>
+            {renderFormations()}
+            <button className="add-formation-btn" onClick={handleAddFormation}>
+              <span>+</span>
+            </button>
+          </div>
         </div>
         <div ref={containerRef} className="waveform"></div>
       </div>
