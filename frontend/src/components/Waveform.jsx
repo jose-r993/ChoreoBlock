@@ -45,6 +45,10 @@ const Waveform = ({
   const [hoverBeat, setHoverBeat] = useState(null);
   const [waveformScrollWidth, setWaveformScrollWidth] = useState(0);
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 0 });
+  const [scrollMultiplier, setScrollMultiplier] = useState(50);
+  const baseZoomRef = useRef(null);
+  const baseMultiplierRef = useRef(50);
+  const [addButtonPosition, setAddButtonPosition] = useState(0);
 
   const [layerVisibility, setLayerVisibility] = useState({
     beatMarkers: true,
@@ -111,6 +115,10 @@ const Waveform = ({
       const audioDuration = wavesurfer.getDuration();
       setDuration(audioDuration);
       onWavesurferInit(wavesurfer);
+
+      if (baseZoomRef.current === null) {
+        baseZoomRef.current = wavesurfer.options.minPxPerSec;
+      }
     }
   }, [wavesurfer, isReady, volume, onWavesurferInit]);
 
@@ -123,35 +131,99 @@ const Waveform = ({
   }, [wavesurfer, isReady, zoom, currentZoom]);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (wavesurfer && wavesurfer.drawer) {
-        requestAnimationFrame(() => {
-          if (wavesurfer && wavesurfer.isReady) {
-            const waveWrapper = wavesurfer.getWrapper();
-            const currentWidth = waveWrapper?.scrollWidth || 0;
-            setWaveformScrollWidth(currentWidth);
-            if (formationsContainerRef.current) {
-              formationsContainerRef.current.style.width = `${currentWidth}px`;
-            }
-            const scrollLeft = wavesurfer.getScroll();
-            if (formationsContainerRef.current) {
-              formationsContainerRef.current.style.left = `-${scrollLeft}px`;
-            }
-            if (containerRef.current) {
-              setVisibleRange({
-                start: scrollLeft,
-                end: scrollLeft + containerRef.current.offsetWidth,
-              });
-            }
+    if (wavesurfer && isReady) {
+      let rafIdUpdate = null;
+      let waveWrapperElement = null;
+
+      const updateWidthAndSyncPosition = () => {
+        if (rafIdUpdate) cancelAnimationFrame(rafIdUpdate);
+        rafIdUpdate = requestAnimationFrame(() => {
+          if (!waveWrapperElement)
+            waveWrapperElement = wavesurfer?.getWrapper();
+          if (!waveWrapperElement) {
+            setWaveformScrollWidth(0);
+            if (formationsContainerRef.current)
+              formationsContainerRef.current.style.width = `0px`;
+            rafIdUpdate = null;
+            return;
           }
+          const currentWidth = waveWrapperElement.scrollWidth;
+          const scrollLeft = waveWrapperElement.scrollLeft;
+          setWaveformScrollWidth(currentWidth);
+          if (formationsContainerRef.current) {
+            formationsContainerRef.current.style.width = `${currentWidth}px`;
+
+            formationsContainerRef.current.style.transition =
+              "transform 100ms ease-out";
+
+            setTimeout(() => {
+              if (formationsContainerRef.current) {
+                formationsContainerRef.current.style.transition = "";
+              }
+            }, 150);
+          }
+          rafIdUpdate = null;
         });
+      };
+
+      const handleZoom = () => {
+        if (formationsContainerRef.current) {
+          formationsContainerRef.current.style.transition =
+            "transform 100ms ease-out";
+        }
+
+        const currentPxPerSec = wavesurfer.options.minPxPerSec;
+        if (currentPxPerSec && baseZoomRef.current) {
+          const zoomRatio = currentPxPerSec / baseZoomRef.current;
+          const newMultiplier = baseMultiplierRef.current * zoomRatio;
+          setScrollMultiplier(newMultiplier);
+        }
+
+        updateWidthAndSyncPosition();
+
+        setTimeout(() => {
+          if (formationsContainerRef.current) {
+            formationsContainerRef.current.style.transition = "";
+          }
+        }, 150);
+      };
+
+      const handleReady = () => {
+        waveWrapperElement = wavesurfer?.getWrapper();
+        updateWidthAndSyncPosition();
+
+        if (baseZoomRef.current === null && wavesurfer.options.minPxPerSec) {
+          baseZoomRef.current = wavesurfer.options.minPxPerSec;
+        }
+      };
+
+      const handleRedraw = () => updateWidthAndSyncPosition();
+
+      wavesurfer.on("ready", handleReady);
+      wavesurfer.on("redraw", handleRedraw);
+      wavesurfer.on("zoom", handleZoom);
+
+      if (wavesurfer.isReady) {
+        waveWrapperElement = wavesurfer?.getWrapper();
+        updateWidthAndSyncPosition();
+
+        if (baseZoomRef.current === null && wavesurfer.options.minPxPerSec) {
+          baseZoomRef.current = wavesurfer.options.minPxPerSec;
+        }
       }
-    };
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [wavesurfer, isReady, setVisibleRange]);
+
+      return () => {
+        if (rafIdUpdate) cancelAnimationFrame(rafIdUpdate);
+        if (wavesurfer) {
+          try {
+            wavesurfer.un("ready", handleReady);
+            wavesurfer.un("redraw", handleRedraw);
+            wavesurfer.un("zoom", handleZoom);
+          } catch (error) {}
+        }
+      };
+    }
+  }, [wavesurfer, setZoom, setVisibleRange, isReady, scrollMultiplier]);
 
   useEffect(() => {
     if (wavesurfer && typeof currentTime === "number") {
@@ -171,11 +243,9 @@ const Waveform = ({
     if (regionsPluginRef.current) {
       try {
         regionsPluginRef.current.clearRegions();
-      } catch (err) {
-        console.warn("Error clearing regions:", err);
-      }
+      } catch (err) {}
     }
-  }, []);
+  }, [regionsPluginRef]);
 
   const findClosestBeatIndex = useCallback(
     (time) => {
@@ -230,7 +300,6 @@ const Waveform = ({
   const drawAllRegions = useCallback(() => {
     if (!regionsPluginRef.current || !wavesurfer || !isReady || !duration)
       return;
-
     try {
       clearAllRegions();
       const beatMap = new Array(beatTimestamps.length).fill(null);
@@ -238,13 +307,8 @@ const Waveform = ({
         const startBeat = group.startBeat;
         const endBeat = startBeat + group.groupLength;
         const transStartBeat =
-          group.transitionStartBeat !== undefined
-            ? group.transitionStartBeat
-            : startBeat + group.groupLength - 2;
-        const transEndBeat =
-          transStartBeat +
-          (group.transitionLength !== undefined ? group.transitionLength : 2);
-
+          group.transitionStartBeat ?? startBeat + group.groupLength - 2;
+        const transEndBeat = transStartBeat + (group.transitionLength ?? 2);
         for (let i = startBeat; i < endBeat && i < beatTimestamps.length; i++) {
           beatMap[i] = {
             groupIndex,
@@ -257,12 +321,10 @@ const Waveform = ({
       if (layerVisibility.beatMarkers && beatTimestamps) {
         beatTimestamps.forEach((time, index) => {
           if (index % subdivisionFactor !== 0) return;
-
           const beatInfo = beatMap[index];
           let color = "#888888";
           let label = "";
           let isTransition = false;
-
           if (beatInfo) {
             color = beatInfo.color;
             label = `${beatInfo.groupIndex + 1}`;
@@ -282,7 +344,6 @@ const Waveform = ({
               label = `${defaultGroupIndex + 1}`;
             }
           }
-
           const region = regionsPluginRef.current.addRegion({
             start: time - 0.04,
             end: time + 0.04,
@@ -292,31 +353,23 @@ const Waveform = ({
             id: `beat-${index}`,
             data: { type: "beat", beatIndex: index, isTransition },
           });
-
           if (label && region && region.element && layerVisibility.labels) {
             const labelEl = region.element?.querySelector(
               ".wavesurfer-region-label"
             );
-            if (labelEl) {
+            if (labelEl)
               labelEl.innerHTML = `<span class="marker-label">${label}</span>`;
-            }
-            if (isTransition) {
-              region.element.classList.add("transition-beat");
-            }
+            if (isTransition) region.element.classList.add("transition-beat");
           }
-
           if (region) {
             region.on("click", () => {
-              if (wavesurfer && duration > 0) {
+              if (wavesurfer && duration > 0)
                 wavesurfer.seekTo(time / duration);
-              }
             });
           }
         });
       }
-    } catch (error) {
-      console.warn("Error drawing regions:", error);
-    }
+    } catch (error) {}
   }, [
     regionsPluginRef,
     wavesurfer,
@@ -445,14 +498,17 @@ const Waveform = ({
         onUpdateGroup(groupIndex, updatedGroup);
       }
     };
+
     const handleRegionClick = (region) => {
       if (!region.data) return;
       const { type, groupIndex } = region.data;
       if (type === "formation" || type === "transition")
         onSelectGroup(groupIndex);
     };
+
     regionsPluginRef.current.on("region-updated", handleRegionUpdated);
     regionsPluginRef.current.on("region-clicked", handleRegionClick);
+
     return () => {
       if (regionsPluginRef.current) {
         regionsPluginRef.current.un("region-updated", handleRegionUpdated);
@@ -469,6 +525,31 @@ const Waveform = ({
     snapMode,
     findClosestBeatIndex,
     beatTimestamps,
+  ]);
+
+  useEffect(() => {
+    if (!waveformScrollWidth || !isReady) return;
+
+    let position = 30;
+
+    if (customGroups && customGroups.length > 0) {
+      const lastGroup = customGroups[customGroups.length - 1];
+      if (lastGroup) {
+        const lastBeat = lastGroup.startBeat + lastGroup.groupLength;
+        position = beatToPosition(lastBeat, waveformScrollWidth);
+
+        position += 10;
+      }
+    }
+
+    setAddButtonPosition(position);
+  }, [
+    customGroups,
+    waveformScrollWidth,
+    isReady,
+    beatToPosition,
+    beatTimestamps,
+    duration,
   ]);
 
   const handleAddFormation = useCallback(() => {
@@ -493,8 +574,8 @@ const Waveform = ({
       groupLength = beatTimestamps.length - startBeat - 1;
       if (groupLength < 2) groupLength = 2;
     }
-    const transitionStartBeat = startBeat + groupLength - 2;
-    const transitionLength = 2;
+    const transitionStartBeat = startBeat;
+    const transitionLength = groupLength > 2 ? groupLength - 2 : groupLength;
     const MARKER_COLORS = [
       "#FF5500",
       "#00AAFF",
@@ -517,7 +598,6 @@ const Waveform = ({
     onAddGroup,
     wavesurfer,
     findClosestBeatIndex,
-    isReady,
   ]);
 
   const handleDragStart = useCallback(
@@ -525,14 +605,16 @@ const Waveform = ({
       e.stopPropagation();
       if (
         !formationsContainerRef.current ||
-        !containerRef.current ||
+        !wavesurfer ||
         !customGroups[groupIndex]
       )
         return;
+      const waveWrapper = wavesurfer.getWrapper();
+      if (!waveWrapper) return;
       const formationsDiv = formationsContainerRef.current;
       const containerRect = formationsDiv.getBoundingClientRect();
-      const x =
-        e.clientX - containerRect.left + containerRef.current.scrollLeft;
+      const currentScrollLeft = waveWrapper.scrollLeft;
+      const x = e.clientX - containerRect.left + currentScrollLeft;
       setIsDragging(true);
       setDragInfo({
         groupIndex,
@@ -541,18 +623,14 @@ const Waveform = ({
         startBeat: customGroups[groupIndex].startBeat,
         groupLength: customGroups[groupIndex].groupLength,
         transitionStartBeat:
-          customGroups[groupIndex].transitionStartBeat !== undefined
-            ? customGroups[groupIndex].transitionStartBeat
-            : customGroups[groupIndex].startBeat +
-              customGroups[groupIndex].groupLength -
-              2,
-        transitionLength:
-          customGroups[groupIndex].transitionLength !== undefined
-            ? customGroups[groupIndex].transitionLength
-            : 2,
+          customGroups[groupIndex].transitionStartBeat ??
+          customGroups[groupIndex].startBeat +
+            customGroups[groupIndex].groupLength -
+            2,
+        transitionLength: customGroups[groupIndex].transitionLength ?? 2,
       });
     },
-    [customGroups]
+    [customGroups, wavesurfer]
   );
 
   const handleFormationClick = useCallback(
@@ -563,9 +641,7 @@ const Waveform = ({
         const beatIndex = customGroups[groupIndex].startBeat;
         if (beatTimestamps && beatTimestamps[beatIndex] !== undefined) {
           const time = beatTimestamps[beatIndex];
-          if (duration > 0) {
-            wavesurfer.seekTo(time / duration);
-          }
+          if (duration > 0) wavesurfer.seekTo(time / duration);
         }
       }
     },
@@ -578,37 +654,50 @@ const Waveform = ({
         !isDragging ||
         !dragInfo ||
         !wavesurfer ||
-        !containerRef.current ||
         !formationsContainerRef.current
       )
         return;
-
       const waveWrapper = wavesurfer.getWrapper();
       const totalWidth = waveWrapper?.scrollWidth;
       if (!totalWidth) return;
-
       const formationsDiv = formationsContainerRef.current;
       const containerRect = formationsDiv.getBoundingClientRect();
-      const x =
-        e.clientX - containerRect.left + containerRef.current.scrollLeft;
-
-      const currentBeat = positionToBeat(x, totalWidth);
-      const startBeatDrag = positionToBeat(dragInfo.startX, totalWidth);
-      let deltaBeat = currentBeat - startBeatDrag;
-
+      const currentScrollLeft = waveWrapper.scrollLeft;
+      const x = e.clientX - containerRect.left + currentScrollLeft;
+      let currentBeat = 0;
       if (snapMode === "beats") {
-        deltaBeat =
-          findClosestBeatIndex((x / totalWidth) * duration) -
-          findClosestBeatIndex((dragInfo.startX / totalWidth) * duration);
+        currentBeat = findClosestBeatIndex((x / totalWidth) * duration);
+      } else {
+        const time = (x / totalWidth) * duration;
+        currentBeat = findClosestBeatIndex(time);
       }
-
+      let startBeatDrag = 0;
+      if (snapMode === "beats") {
+        startBeatDrag = findClosestBeatIndex(
+          (dragInfo.startX / totalWidth) * duration
+        );
+      } else {
+        const startTime = (dragInfo.startX / totalWidth) * duration;
+        startBeatDrag = findClosestBeatIndex(startTime);
+      }
+      let deltaBeat = currentBeat - startBeatDrag;
+      if (snapMode !== "beats") {
+        const pixelDelta = x - dragInfo.startX;
+        const timeDelta = (pixelDelta / totalWidth) * duration;
+        const beatDuration =
+          beatTimestamps && beatTimestamps.length > 1
+            ? beatTimestamps[1] - beatTimestamps[0]
+            : 0.1;
+        deltaBeat = Math.round(timeDelta / beatDuration);
+      }
       const group = customGroups[dragInfo.groupIndex];
       if (!group) return;
-
-      let newStartBeat = group.startBeat;
-      let newGroupLength = group.groupLength;
-      let newTransitionStartBeat = group.transitionStartBeat;
-      let newTransitionLength = group.transitionLength;
+      let {
+        startBeat: newStartBeat,
+        groupLength: newGroupLength,
+        transitionStartBeat: newTransitionStartBeat,
+        transitionLength: newTransitionLength,
+      } = group;
 
       if (dragInfo.edge === "start") {
         newStartBeat = Math.max(0, dragInfo.startBeat + deltaBeat);
@@ -616,9 +705,10 @@ const Waveform = ({
         if (newStartBeat + 2 > endBeat) newStartBeat = endBeat - 2;
         newGroupLength = endBeat - newStartBeat;
         const oldTransitionStartOffset =
-          dragInfo.transitionStartBeat - dragInfo.startBeat;
+          (dragInfo.transitionStartBeat ??
+            dragInfo.startBeat + dragInfo.groupLength - 2) - dragInfo.startBeat;
         newTransitionStartBeat = newStartBeat + oldTransitionStartOffset;
-        newTransitionLength = dragInfo.transitionLength;
+        newTransitionLength = dragInfo.transitionLength ?? 2;
         if (newTransitionStartBeat < newStartBeat) {
           newTransitionLength -= newStartBeat - newTransitionStartBeat;
           newTransitionStartBeat = newStartBeat;
@@ -639,8 +729,9 @@ const Waveform = ({
           newGroupLength = beatTimestamps.length - dragInfo.startBeat - 1;
         }
         newStartBeat = dragInfo.startBeat;
-        newTransitionStartBeat = dragInfo.transitionStartBeat;
-        newTransitionLength = dragInfo.transitionLength;
+        newTransitionStartBeat =
+          dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2;
+        newTransitionLength = dragInfo.transitionLength ?? 2;
         if (
           newTransitionStartBeat + newTransitionLength >
           newStartBeat + newGroupLength
@@ -652,10 +743,12 @@ const Waveform = ({
         newStartBeat = dragInfo.startBeat;
         newGroupLength = dragInfo.groupLength;
         const originalTransitionEndBeat =
-          dragInfo.transitionStartBeat + dragInfo.transitionLength;
+          (dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2) +
+          (dragInfo.transitionLength ?? 2);
         newTransitionStartBeat = Math.max(
           newStartBeat,
-          dragInfo.transitionStartBeat + deltaBeat
+          (dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2) +
+            deltaBeat
         );
         if (newTransitionStartBeat + 1 > originalTransitionEndBeat) {
           newTransitionStartBeat = originalTransitionEndBeat - 1;
@@ -665,17 +758,20 @@ const Waveform = ({
       } else if (dragInfo.edge === "transition-end") {
         newStartBeat = dragInfo.startBeat;
         newGroupLength = dragInfo.groupLength;
-        newTransitionStartBeat = dragInfo.transitionStartBeat;
+        newTransitionStartBeat =
+          dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2;
+        const currentTransitionEndBeat =
+          (dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2) +
+          (dragInfo.transitionLength ?? 2);
         const newTransitionEndBeat = Math.min(
           newStartBeat + newGroupLength,
-          dragInfo.transitionStartBeat + dragInfo.transitionLength + deltaBeat
+          currentTransitionEndBeat + deltaBeat
         );
         newTransitionLength = Math.max(
           1,
           newTransitionEndBeat - newTransitionStartBeat
         );
       }
-
       newTransitionLength = Math.max(1, newTransitionLength);
       newTransitionStartBeat = Math.max(newStartBeat, newTransitionStartBeat);
       newTransitionLength = Math.min(
@@ -696,7 +792,6 @@ const Waveform = ({
         if (newStartBeat < otherEnd && otherStart < newEndBeatCheck)
           willOverlap = true;
       });
-
       if (!willOverlap) {
         const updatedGroup = {
           ...group,
@@ -753,99 +848,73 @@ const Waveform = ({
   }, []);
 
   useEffect(() => {
-    if (wavesurfer && isReady) {
-      const updateWidthAndInitialPosition = () => {
-        requestAnimationFrame(() => {
-          const waveWrapper = wavesurfer.getWrapper();
-          const currentWidth = waveWrapper?.scrollWidth || 0;
-          setWaveformScrollWidth(currentWidth);
-
-          if (formationsContainerRef.current) {
-            formationsContainerRef.current.style.width = `${currentWidth}px`;
-          }
-
-          if (containerRef.current && formationsContainerRef.current) {
-            const scrollLeft = wavesurfer.getScroll();
-            formationsContainerRef.current.style.transform = `translateX(-${scrollLeft}px)`;
-
-            setVisibleRange({
-              start: scrollLeft,
-              end: scrollLeft + (containerRef.current.offsetWidth || 0),
-            });
-          }
-        });
-      };
-
-      const handleZoom = () => {
-        const currentPxPerSec = wavesurfer?.options?.minPxPerSec;
-        if (currentPxPerSec) {
-          setZoom(currentPxPerSec);
-        }
-        updateWidthAndInitialPosition();
-      };
-
-      wavesurfer.on("zoom", handleZoom);
-      wavesurfer.on("ready", updateWidthAndInitialPosition);
-      wavesurfer.on("redraw", updateWidthAndInitialPosition);
-
-      const initialSyncTimeout = setTimeout(updateWidthAndInitialPosition, 0);
-
-      return () => {
-        clearTimeout(initialSyncTimeout);
-        if (wavesurfer) {
-          wavesurfer.un("zoom", handleZoom);
-          wavesurfer.un("ready", updateWidthAndInitialPosition);
-          wavesurfer.un("redraw", updateWidthAndInitialPosition);
-        }
-      };
-    }
-  }, [wavesurfer, isReady, setZoom, setVisibleRange]);
-
-  useEffect(() => {
     if (!wavesurfer || !isReady) return;
 
-    let rafId = null;
-    const handleWavesurferScroll = (scrollLeft) => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      rafId = requestAnimationFrame(() => {
-        if (formationsContainerRef.current && containerRef.current) {
-          formationsContainerRef.current.style.transform = `translateX(-${scrollLeft}px)`;
+    let rafIdScroll = null;
 
-          setVisibleRange({
-            start: scrollLeft,
-            end: scrollLeft + containerRef.current.offsetWidth,
-          });
+    const handleWavesurferScroll = (scrollLeft) => {
+      if (rafIdScroll) {
+        cancelAnimationFrame(rafIdScroll);
+      }
+
+      rafIdScroll = requestAnimationFrame(() => {
+        const adjustedScrollLeft = scrollLeft * scrollMultiplier;
+
+        if (formationsContainerRef.current) {
+          formationsContainerRef.current.style.transition = "";
+          formationsContainerRef.current.style.transform = `translateX(-${adjustedScrollLeft}px)`;
         }
+
+        rafIdScroll = null;
       });
     };
 
     wavesurfer.on("scroll", handleWavesurferScroll);
 
-    if (containerRef.current) {
-      handleWavesurferScroll(containerRef.current.scrollLeft);
+    const initialSync = () => {
+      if (wavesurfer && wavesurfer.isReady && formationsContainerRef.current) {
+        try {
+          const initialScroll = wavesurfer.getScroll();
+          const adjustedInitialScroll = initialScroll * scrollMultiplier;
+          formationsContainerRef.current.style.transform = `translateX(-${adjustedInitialScroll}px)`;
+        } catch (e) {}
+      }
+    };
+
+    if (wavesurfer.isReady) {
+      initialSync();
+    } else {
+      wavesurfer.once("ready", initialSync);
     }
 
     return () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
+      if (rafIdScroll) {
+        cancelAnimationFrame(rafIdScroll);
       }
       if (wavesurfer) {
-        wavesurfer.un("scroll", handleWavesurferScroll);
+        try {
+          wavesurfer.un("scroll", handleWavesurferScroll);
+          wavesurfer.un("ready", initialSync);
+        } catch (e) {}
       }
     };
-  }, [wavesurfer, isReady, setVisibleRange]);
+  }, [wavesurfer, isReady, scrollMultiplier, setVisibleRange]);
 
   const renderFormations = useCallback(() => {
     if (
       !wavesurfer ||
       !isReady ||
       !formationsContainerRef.current ||
-      !containerRef.current ||
-      waveformScrollWidth === 0
-    )
+      waveformScrollWidth === 0 ||
+      !beatTimestamps ||
+      beatTimestamps.length === 0 ||
+      !duration
+    ) {
       return null;
+    }
+    if (!Array.isArray(customGroups) || customGroups.length === 0) {
+      return null;
+    }
 
     return customGroups.map((group, originalIndex) => {
       const startPosition = beatToPosition(
@@ -858,13 +927,11 @@ const Waveform = ({
       );
       const width = Math.max(endPosition - startPosition, 2);
 
-      const transitionStartBeat =
-        group.transitionStartBeat !== undefined
-          ? group.transitionStartBeat
-          : group.startBeat + group.groupLength - 2;
-      const transitionLength =
-        group.transitionLength !== undefined ? group.transitionLength : 2;
+      if (isNaN(startPosition) || isNaN(width)) return null;
 
+      const transitionStartBeat =
+        group.transitionStartBeat ?? group.startBeat + group.groupLength - 2;
+      const transitionLength = group.transitionLength ?? 2;
       const transitionStartPosition = beatToPosition(
         transitionStartBeat,
         waveformScrollWidth
@@ -885,22 +952,36 @@ const Waveform = ({
             activeGroupIndex === originalIndex ? "active" : ""
           }`}
           style={{
+            position: "absolute",
             left: `${startPosition}px`,
             width: `${width}px`,
             backgroundColor: `${group.color}25`,
             borderColor: group.color,
+            outline: `${group.color} solid 0px`,
             opacity: layerVisibility.formationBoundaries ? 1 : 0.3,
-            position: "absolute",
           }}
           onClick={(e) => handleFormationClick(e, originalIndex)}
         >
-          <div className="formation-content">
+          <div
+            className="formation-content"
+            style={{ borderBottom: `1px solid ${group.color}40` }}
+          >
             <span
               className="formation-name"
-              style={{ display: layerVisibility.labels ? "block" : "none" }}
+              style={{
+                display: layerVisibility.labels ? "block" : "none",
+              }}
             >
               {group.groupName || `Formation ${originalIndex + 1}`}
             </span>
+            <div
+              className="handle handle-start"
+              onMouseDown={(e) => handleDragStart(e, originalIndex, "start")}
+            ></div>
+            <div
+              className="handle handle-end"
+              onMouseDown={(e) => handleDragStart(e, originalIndex, "end")}
+            ></div>
           </div>
           <div
             className="formation-transition"
@@ -911,14 +992,10 @@ const Waveform = ({
               style={{
                 position: "absolute",
                 left: `${transitionStartPosition - startPosition}px`,
-                width: `${transitionWidth}px`,
-                height: "20px",
-                top: "26px",
+                width: `${transitionWidth - 5}px`,
+                maxWidth: "100%",
                 backgroundColor: group.color,
-                opacity: 0.7,
-                borderRadius: "4px",
-                pointerEvents: "all",
-                cursor: "pointer",
+                padding: "0 2px",
               }}
               onMouseEnter={() =>
                 setHoverBeat({
@@ -934,31 +1011,24 @@ const Waveform = ({
                 style={{ display: layerVisibility.labels ? "block" : "none" }}
               >
                 <span>Tr</span>
+                <div
+                  className="handle-transition-start"
+                  onMouseDown={(e) =>
+                    handleDragStart(e, originalIndex, "transition-start")
+                  }
+                  title={`Beat ${transitionStartBeat + 1}`}
+                ></div>
+                <div
+                  className="handle-transition-end"
+                  onMouseDown={(e) =>
+                    handleDragStart(e, originalIndex, "transition-end")
+                  }
+                  title={`Beat ${transitionStartBeat + transitionLength}`}
+                ></div>
               </div>
-              <div
-                className="handle-transition-start"
-                onMouseDown={(e) =>
-                  handleDragStart(e, originalIndex, "transition-start")
-                }
-                title={`Beat ${transitionStartBeat + 1}`}
-              ></div>
-              <div
-                className="handle-transition-end"
-                onMouseDown={(e) =>
-                  handleDragStart(e, originalIndex, "transition-end")
-                }
-                title={`Beat ${transitionStartBeat + transitionLength}`}
-              ></div>
             </div>
           </div>
-          <div
-            className="handle handle-start"
-            onMouseDown={(e) => handleDragStart(e, originalIndex, "start")}
-          ></div>
-          <div
-            className="handle handle-end"
-            onMouseDown={(e) => handleDragStart(e, originalIndex, "end")}
-          ></div>
+
           {hoverBeat &&
             hoverBeat.groupIndex === originalIndex &&
             renderBeatTooltip()}
@@ -968,16 +1038,18 @@ const Waveform = ({
   }, [
     wavesurfer,
     isReady,
+    waveformScrollWidth,
     customGroups,
+    beatTimestamps,
+    duration,
     activeGroupIndex,
+    layerVisibility,
     beatToPosition,
     handleFormationClick,
     handleDragStart,
-    layerVisibility,
     setHoverBeat,
     hoverBeat,
     renderBeatTooltip,
-    waveformScrollWidth,
   ]);
 
   return (
@@ -999,7 +1071,7 @@ const Waveform = ({
               value="beats"
               checked={snapMode === "beats"}
               onChange={() => setSnapMode("beats")}
-            />
+            />{" "}
             Snap to Beats
           </label>
           <label className="snap-radio">
@@ -1009,7 +1081,7 @@ const Waveform = ({
               value="free"
               checked={snapMode === "free"}
               onChange={() => setSnapMode("free")}
-            />
+            />{" "}
             Free Adjustment
           </label>
         </div>
@@ -1071,10 +1143,21 @@ const Waveform = ({
         <div
           className="formations-scroll-wrapper"
           ref={formationsScrollWrapperRef}
+          style={{ overflow: "hidden", height: "50px", padding: 0 }}
         >
-          <div className="formations-regions" ref={formationsContainerRef}>
+          <div
+            className="formations-regions"
+            ref={formationsContainerRef}
+            style={{ position: "relative", height: "100%" }}
+          >
             {renderFormations()}
-            <button className="add-formation-btn" onClick={handleAddFormation}>
+            <button
+              className="add-formation-btn"
+              style={{
+                left: `${addButtonPosition}px`,
+              }}
+              onClick={handleAddFormation}
+            >
               <span>+</span>
             </button>
           </div>

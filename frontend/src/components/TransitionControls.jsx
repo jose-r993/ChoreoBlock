@@ -260,7 +260,7 @@ const TransitionControls = ({
         </button>
       </div>
 
-      <div className="transition-content">
+      <div className="transition-content-sideBar">
         {selectedTransitionView === "group"
           ? renderGroupTransitionControls()
           : renderDancerTransitionControls()}
