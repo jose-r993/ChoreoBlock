@@ -116,6 +116,10 @@
       cursor: crosshair;
     }
 
+    &.marquee-active {
+      cursor: crosshair;
+    }
+
     .stage-grid {
       position: absolute;
       top: 0;
@@ -163,6 +167,11 @@
         .dancer-name {
           opacity: 1;
         }
+      }
+
+      &.selected-by-marquee {
+        outline: 2px solid #007bff;
+        background-color: rgba(0, 123, 255, 0.3);
       }
 
       &.path-active::after {
