@@ -5,26 +5,16 @@ const PathDrawing = ({
   dancers,
   activeGroupIndex,
   formations,
-  onAddDancerPath,
+  onAddDancerPathForSidebar,
   onPathModeChange,
-  pathMode: parentPathMode,
+  currentPathMode,
 }) => {
-  const [selectedDancer, setSelectedDancer] = useState(null);
-  const [drawingInstructions, setDrawingInstructions] = useState("default");
+  const [selectedDancerForClear, setSelectedDancerForClear] = useState(null);
+  const [showAdvancedHints, setShowAdvancedHints] = useState(false);
 
   useEffect(() => {
-    setSelectedDancer(null);
-    setDrawingInstructions("default");
+    setSelectedDancerForClear(null);
   }, [activeGroupIndex]);
-
-  const handleDancerSelect = (dancer) => {
-    setSelectedDancer(dancer);
-    setDrawingInstructions("ready");
-  };
-
-  const changePathMode = (mode) => {
-    onPathModeChange(mode);
-  };
 
   const renderDancerShape = (dancer) => {
     switch (dancer.shape) {
@@ -42,164 +32,195 @@ const PathDrawing = ({
   };
 
   const renderInstructions = () => {
-    if (activeGroupIndex === null || activeGroupIndex === 0) {
+    if (activeGroupIndex === null) {
       return (
         <div className="instructions warning">
-          <p>
-            Select a formation (after the first one) to draw the transition path
-            into it.
-          </p>
+          <p>Select a Formation on the timeline to draw paths.</p>
         </div>
       );
     }
-
-    if (!selectedDancer) {
-      return (
-        <div className="instructions">
-          <p>
-            Select a dancer below to define their path for entering Formation{" "}
-            {activeGroupIndex + 1}.
-          </p>
+    return (
+      <div className="instructions highlight">
+        <p>Path drawing active for Formation {activeGroupIndex + 1}.</p>
+        <div className="drawing-tips">
+          <h5>Drawing Tips:</h5>
+          <ul>
+            <li>
+              <strong>Click & drag</strong> any dancer to set their path
+            </li>
+            <li>
+              <strong>Draw straight</strong> for linear movement
+            </li>
+            <li>
+              <strong>Draw curved</strong> for custom paths
+            </li>
+            <li>
+              <strong>Hold Shift</strong> to lock to horizontal/vertical
+            </li>
+            <li>
+              <strong>Select multiple</strong> dancers to move together
+            </li>
+          </ul>
         </div>
-      );
-    }
-
-    if (drawingInstructions === "ready") {
-      return (
-        <div className="instructions highlight">
-          <p>
-            Ready to draw path for <strong>{selectedDancer?.name}</strong> into
-            Formation {activeGroupIndex + 1}:
-          </p>
-          <p>
-            <span className="step">1.</span> Go to the stage area.
-          </p>
-          <p>
-            <span className="step">2.</span> Click the "Draw Path" button.
-          </p>
-          <p>
-            <span className="step">3.</span> Click and drag{" "}
-            <strong>{selectedDancer?.name}</strong> to draw their path.
-          </p>
-          <p>
-            <span className="step">4.</span> Release the mouse to save.
-          </p>
-        </div>
-      );
-    }
-
-    return null;
+      </div>
+    );
   };
 
-  const dancerHasPath = (dancerId) => {
+  const dancerHasRawPath = (dancerId) => {
     if (
       activeGroupIndex === null ||
       !formations ||
+      activeGroupIndex >= formations.length ||
       !formations[activeGroupIndex]
     ) {
       return false;
     }
-    const dancerData = formations[activeGroupIndex][dancerId];
-    return !!dancerData?.path && dancerData.path.length > 0;
+    const formationForGroup = formations[activeGroupIndex];
+    if (
+      typeof formationForGroup !== "object" ||
+      formationForGroup === null ||
+      Array.isArray(formationForGroup)
+    ) {
+      return false;
+    }
+    const dancerData = formationForGroup[dancerId];
+    return !!dancerData?.rawStagePath && dancerData.rawStagePath.length > 0;
+  };
+
+  const getPathTypeForDancer = (dancerId) => {
+    if (
+      activeGroupIndex === null ||
+      !formations ||
+      activeGroupIndex >= formations.length ||
+      !formations[activeGroupIndex]
+    ) {
+      return null;
+    }
+    const formationForGroup = formations[activeGroupIndex];
+    const dancerData = formationForGroup[dancerId];
+    return dancerData?.pathMetadata?.pathKind || "unknown";
   };
 
   const clearDancerPath = (dancerId) => {
-    if (activeGroupIndex !== null) {
-      onAddDancerPath(dancerId, null, activeGroupIndex);
+    console.log(
+      "PATH_DRAWING_DEBUG: Clearing path for dancer:",
+      dancerId,
+      "in group:",
+      activeGroupIndex
+    );
+    if (activeGroupIndex !== null && onAddDancerPathForSidebar) {
+      onAddDancerPathForSidebar(dancerId, null, "direct");
+      setSelectedDancerForClear(null);
     }
   };
 
   return (
     <div className="path-drawing">
       <h3>Draw Movement Paths</h3>
-
       {renderInstructions()}
 
-      <div className="path-mode-selector">
-        <h4>Path Style:</h4>
-        <div className="path-modes">
-          <button
-            className={`path-mode-btn ${
-              parentPathMode === "direct" ? "active" : ""
-            }`}
-            onClick={() => changePathMode("direct")}
-            title="Linear path between start and end"
-          >
-            Direct
-            <div className="preview-line direct"></div>
-          </button>
-
-          <button
-            className={`path-mode-btn ${
-              parentPathMode === "curved" ? "active" : ""
-            }`}
-            onClick={() => changePathMode("curved")}
-            title="Smoothed path using controller logic"
-          >
-            Curved
-            <div className="preview-line curved"></div>
-          </button>
-
-          <button
-            className={`path-mode-btn ${
-              parentPathMode === "cardinal" ? "active" : ""
-            }`}
-            onClick={() => changePathMode("cardinal")}
-            title="Smoothed path using controller logic"
-          >
-            Smooth
-            <div className="preview-line cardinal"></div>
-          </button>
+      {showAdvancedHints && (
+        <div className="path-mode-hints">
+          <h4>Drawing Preference (Optional):</h4>
+          <div className="hint-modes">
+            <button
+              className={`hint-mode-btn ${
+                currentPathMode === "auto" ? "active" : ""
+              }`}
+              onClick={() => onPathModeChange?.("auto")}
+              title="Let the system detect your intent"
+            >
+              Auto-Detect
+              <span className="description">Smart detection</span>
+            </button>
+            <button
+              className={`hint-mode-btn ${
+                currentPathMode === "direct" ? "active" : ""
+              }`}
+              onClick={() => onPathModeChange?.("direct")}
+              title="Force all paths to be straight lines"
+            >
+              Prefer Linear
+              <span className="description">Straight paths</span>
+            </button>
+            <button
+              className={`hint-mode-btn ${
+                currentPathMode === "curved" ? "active" : ""
+              }`}
+              onClick={() => onPathModeChange?.("curved")}
+              title="Keep all paths as curves"
+            >
+              Prefer Curved
+              <span className="description">Smooth curves</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="dancers-list">
-        <h4>Select Dancer for Path:</h4>
+      <button
+        className="toggle-advanced-btn"
+        onClick={() => setShowAdvancedHints(!showAdvancedHints)}
+      >
+        {showAdvancedHints ? "Hide" : "Show"} Advanced Options
+      </button>
 
-        {dancers.length === 0 ? (
-          <div className="empty-list">No dancers added yet</div>
+      <div className="dancers-list-for-clear">
+        <h4>
+          Manage Paths (Formation{" "}
+          {activeGroupIndex !== null ? activeGroupIndex + 1 : "N/A"}):
+        </h4>
+        {activeGroupIndex === null ? (
+          <div className="empty-list">Select a formation to manage paths.</div>
+        ) : dancers.length === 0 ? (
+          <div className="empty-list">No dancers added yet.</div>
         ) : (
           <div className="dancer-items">
-            {dancers.map((dancer) => (
-              <div
-                key={dancer.id}
-                className={`dancer-item ${
-                  selectedDancer?.id === dancer.id ? "selected" : ""
-                }`}
-                onClick={() => handleDancerSelect(dancer)}
-                title={`Define path for ${dancer.name}`}
-              >
-                <div className="dancer-info">
-                  <svg width="16" height="16" viewBox="0 0 20 20">
-                    {renderDancerShape(dancer)}
-                  </svg>
-                  <span className="dancer-name">{dancer.name}</span>
+            {dancers.map((dancer) => {
+              const pathType = getPathTypeForDancer(dancer.id);
+              return (
+                <div
+                  key={dancer.id}
+                  className={`dancer-item-manage ${
+                    selectedDancerForClear?.id === dancer.id
+                      ? "selected-for-info"
+                      : ""
+                  }`}
+                  onClick={() => setSelectedDancerForClear(dancer)}
+                >
+                  <div className="dancer-info">
+                    <svg width="16" height="16" viewBox="0 0 20 20">
+                      {renderDancerShape(dancer)}
+                    </svg>
+                    <span className="dancer-name">{dancer.name}</span>
+                  </div>
+                  {dancerHasRawPath(dancer.id) ? (
+                    <div className="path-controls">
+                      <span className={`path-type-indicator ${pathType}`}>
+                        {pathType === "straight"
+                          ? "↗"
+                          : pathType === "curve"
+                          ? "〰️"
+                          : pathType === "hold"
+                          ? "⏸"
+                          : "?"}
+                      </span>
+                      <button
+                        className="clear-path-btn-small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          clearDancerPath(dancer.id);
+                        }}
+                        title={`Clear path for ${dancer.name}`}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="path-status-small">No path set</span>
+                  )}
                 </div>
-
-                {dancerHasPath(dancer.id) ? (
-                  <button
-                    className="clear-path-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      clearDancerPath(dancer.id);
-                    }}
-                    title={`Clear path for ${dancer.name} into Formation ${
-                      activeGroupIndex !== null ? activeGroupIndex + 1 : ""
-                    }`}
-                  >
-                    Clear Path
-                  </button>
-                ) : (
-                  <span className="path-status">
-                    {selectedDancer?.id === dancer.id
-                      ? activeGroupIndex !== null && activeGroupIndex > 0
-                        ? "Ready"
-                        : "Select Group"
-                      : "No path defined"}
-                  </span>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

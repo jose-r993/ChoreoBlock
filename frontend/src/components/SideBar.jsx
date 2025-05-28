@@ -8,8 +8,6 @@ import "../styles/SideBar.scss";
 import volumeIcon from "../assets/volumeIcon.svg";
 import stylusIcon from "../assets/stylusIcon.svg";
 import dancerIcon from "../assets/dancerIcon.svg";
-// import transitionIcon from "../assets/transitionIcon.svg"; // Add this icon to assets
-// import pathIcon from "../assets/pathIcon.svg"; // Add this icon to assets
 
 const SideBar = ({
   currentZoom,
@@ -45,6 +43,9 @@ const SideBar = ({
   onUpdateFormation,
   setDancerTransitionType,
   onAddDancerPath,
+  currentPathMode,
+  onPathModeChange,
+  onAddDancerPathForSidebar,
 }) => {
   const [activeTab, setActiveTab] = useState("beatGroups");
 
@@ -144,7 +145,9 @@ const SideBar = ({
           dancers={dancers}
           activeGroupIndex={activeGroupIndex}
           formations={formations}
-          onAddDancerPath={onAddDancerPath}
+          onAddDancerPathForSidebar={onAddDancerPathForSidebar}
+          currentPathMode={currentPathMode}
+          onPathModeChange={onPathModeChange}
         />
       ),
     },
