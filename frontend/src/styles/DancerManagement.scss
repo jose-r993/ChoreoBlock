@@ -6,7 +6,6 @@
     font-size: 1rem;
     font-weight: 600;
     margin-bottom: 1rem;
-    color: #f5f5f5;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid #324a5f;
   }
@@ -22,7 +21,7 @@
         width: 100%;
         padding: 0.5rem;
         background-color: #0c1821;
-        color: #f5f5f5;
+        color: inherit;
         border: none;
         border-radius: 0.25rem;
         font-size: 0.9rem;
@@ -68,7 +67,6 @@
           }
 
           &.active {
-            border-color: #324a5f;
             box-shadow: 0 0 0 2px rgba(50, 74, 95, 0.5);
           }
         }
@@ -76,6 +74,7 @@
         .color-option {
           &.active {
             border-width: 2px;
+            border-color: #324a5f;
           }
         }
       }
@@ -85,7 +84,7 @@
       width: 100%;
       padding: 0.5rem 1rem;
       background-color: #324a5f;
-      color: #f5f5f5;
+      color: inherit;
       border: none;
       border-radius: 0.25rem;
       font-weight: 500;
@@ -109,7 +108,7 @@
       font-size: 0.9rem;
       font-weight: 600;
       margin-bottom: 0.75rem;
-      color: #f5f5f5;
+      color: inherit;
     }
 
     .empty-list {
@@ -122,7 +121,6 @@
     }
 
     .dancers-list {
-      max-height: 200px;
       overflow-y: auto;
       scrollbar-width: thin;
       scrollbar-color: #324a5f #0c1821;

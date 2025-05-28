@@ -97,19 +97,25 @@ const useFormationController = ({
       stateNeedsUpdate = true;
     } else {
       let foundState = false;
+
       for (let i = 0; i < customGroups.length; i++) {
         const group = customGroups[i];
         if (
           !group ||
           typeof group.startBeat !== "number" ||
           typeof group.groupLength !== "number"
-        )
+        ) {
           continue;
+        }
+
         const groupStartBeat = group.startBeat;
         const groupLength = Math.max(1, group.groupLength);
-        if (groupStartBeat < 0 || groupStartBeat >= beatTimestamps.length)
+
+        if (groupStartBeat < 0 || groupStartBeat >= beatTimestamps.length) {
           continue;
+        }
         const groupStartTime = beatTimestamps[groupStartBeat];
+
         const nextGroup = customGroups[i + 1];
         const nextGroupStartBeat = nextGroup?.startBeat ?? -1;
         const groupEndTime =
@@ -118,14 +124,17 @@ const useFormationController = ({
           nextGroupStartBeat < beatTimestamps.length
             ? beatTimestamps[nextGroupStartBeat]
             : Infinity;
+
         const defaultTransitionStartBeat = groupStartBeat;
         const defaultTransitionLength = Math.max(0, groupLength - 1);
+
         const transitionStartBeat =
           typeof group.transitionStartBeat === "number" &&
           group.transitionStartBeat >= groupStartBeat &&
           group.transitionStartBeat < groupStartBeat + groupLength
             ? group.transitionStartBeat
             : defaultTransitionStartBeat;
+
         const transitionLength =
           typeof group.transitionLength === "number" &&
           group.transitionLength >= 0 &&
@@ -133,7 +142,9 @@ const useFormationController = ({
             groupStartBeat + groupLength
             ? group.transitionLength
             : defaultTransitionLength;
+
         const transitionEndBeat = transitionStartBeat + transitionLength;
+
         const safeStartBeatIndex = Math.min(
           Math.max(0, transitionStartBeat),
           beatTimestamps.length - 1
@@ -142,12 +153,14 @@ const useFormationController = ({
           Math.max(0, transitionEndBeat),
           beatTimestamps.length - 1
         );
+
         const transitionStartTime =
           beatTimestamps[safeStartBeatIndex] ?? groupStartTime;
         const transitionEndTime =
           safeEndBeatIndex === safeStartBeatIndex
             ? transitionStartTime
             : beatTimestamps[safeEndBeatIndex] ?? transitionStartTime;
+
         calculatedEffectiveStart = Math.max(
           groupStartTime,
           transitionStartTime
@@ -160,6 +173,7 @@ const useFormationController = ({
 
         if (currentTime >= groupStartTime && currentTime < groupEndTime) {
           calculatedIndex = i;
+
           const epsilon = 1e-9;
           if (
             currentTime >= calculatedEffectiveStart &&
@@ -184,6 +198,7 @@ const useFormationController = ({
           break;
         }
       }
+
       if (
         !foundState &&
         customGroups.length > 0 &&
@@ -196,6 +211,7 @@ const useFormationController = ({
         calculatedEffectiveEnd = -1;
         foundState = true;
       }
+
       if (!foundState && customGroups.length > 0) {
         const lastGroupIndex = customGroups.length - 1;
         const lastGroup = customGroups[lastGroupIndex];
@@ -206,6 +222,7 @@ const useFormationController = ({
             const groupLength = Math.max(1, lastGroup.groupLength);
             const defaultTransitionStartBeat = lastGroup.startBeat;
             const defaultTransitionLength = Math.max(0, groupLength - 1);
+
             const transitionStartBeat =
               typeof lastGroup.transitionStartBeat === "number" &&
               lastGroup.transitionStartBeat >= lastGroup.startBeat &&
@@ -219,7 +236,9 @@ const useFormationController = ({
                 lastGroup.startBeat + groupLength
                 ? lastGroup.transitionLength
                 : defaultTransitionLength;
+
             const transitionEndBeat = transitionStartBeat + transitionLength;
+
             const safeStartBeatIndex = Math.min(
               Math.max(0, transitionStartBeat),
               beatTimestamps.length - 1
@@ -228,12 +247,14 @@ const useFormationController = ({
               Math.max(0, transitionEndBeat),
               beatTimestamps.length - 1
             );
+
             const transitionStartTime =
               beatTimestamps[safeStartBeatIndex] ?? lastGroupStartTime;
             const transitionEndTime =
               safeEndBeatIndex === safeStartBeatIndex
                 ? transitionStartTime
                 : beatTimestamps[safeEndBeatIndex] ?? transitionStartTime;
+
             calculatedEffectiveStart = Math.max(
               lastGroupStartTime,
               transitionStartTime
@@ -243,6 +264,7 @@ const useFormationController = ({
               0,
               calculatedEffectiveEnd - calculatedEffectiveStart
             );
+
             const epsilon = 1e-9;
             if (
               currentTime >= calculatedEffectiveStart &&
@@ -267,6 +289,7 @@ const useFormationController = ({
           }
         }
       }
+
       if (!foundState) {
         calculatedIndex = null;
         calculatedInTransition = false;
@@ -286,6 +309,7 @@ const useFormationController = ({
         effectiveTransitionStart: calculatedEffectiveStart,
         effectiveTransitionEnd: calculatedEffectiveEnd,
       };
+
       if (
         previousState.index !== newState.index ||
         previousState.isInTransition !== newState.isInTransition ||
@@ -304,18 +328,23 @@ const useFormationController = ({
   const getActualEndPointOfFormation_Internal = useCallback(
     (dancerId, formationIndex, memo) => {
       const memoKey = `${dancerId}_${formationIndex}`;
-      if (memo[memoKey] !== undefined) return memo[memoKey];
+      if (memo[memoKey] !== undefined) {
+        return memo[memoKey];
+      }
+
       if (formationIndex < 0) {
         const pos = initialPositions[dancerId] || { x: 200, y: 200 };
         memo[memoKey] = pos;
         return pos;
       }
+
       const prevActualEndPos = getActualEndPointOfFormation_Internal(
         dancerId,
         formationIndex - 1,
         memo
       );
-      let currentFormationObjectForDancer;
+
+      let currentFormationObjectForDancer = undefined;
       if (
         formations &&
         formationIndex < formations.length &&
@@ -330,27 +359,37 @@ const useFormationController = ({
           currentFormationObjectForDancer = formationAtIndex[dancerId];
         }
       }
+
       let result = prevActualEndPos;
-      if (currentFormationObjectForDancer?.rawStagePath?.length > 0) {
+
+      if (
+        currentFormationObjectForDancer &&
+        currentFormationObjectForDancer.rawStagePath &&
+        currentFormationObjectForDancer.rawStagePath.length > 0
+      ) {
         const rawPath = currentFormationObjectForDancer.rawStagePath;
-        const drawnPathStartPos = rawPath[0];
-        const drawnPathEndPos = rawPath[rawPath.length - 1];
-        if (
-          typeof drawnPathStartPos?.x === "number" &&
-          typeof drawnPathStartPos?.y === "number" &&
-          typeof drawnPathEndPos?.x === "number" &&
-          typeof drawnPathEndPos?.y === "number" &&
-          typeof prevActualEndPos?.x === "number" &&
-          typeof prevActualEndPos?.y === "number"
-        ) {
-          const deltaX = prevActualEndPos.x - drawnPathStartPos.x;
-          const deltaY = prevActualEndPos.y - drawnPathStartPos.y;
-          result = {
-            x: drawnPathEndPos.x + deltaX,
-            y: drawnPathEndPos.y + deltaY,
-          };
+        if (rawPath.length > 0) {
+          const drawnPathStartPos = rawPath[0];
+          const drawnPathEndPos = rawPath[rawPath.length - 1];
+
+          if (
+            typeof drawnPathStartPos?.x === "number" &&
+            typeof drawnPathStartPos?.y === "number" &&
+            typeof drawnPathEndPos?.x === "number" &&
+            typeof drawnPathEndPos?.y === "number" &&
+            typeof prevActualEndPos?.x === "number" &&
+            typeof prevActualEndPos?.y === "number"
+          ) {
+            const deltaX = prevActualEndPos.x - drawnPathStartPos.x;
+            const deltaY = prevActualEndPos.y - drawnPathStartPos.y;
+            result = {
+              x: drawnPathEndPos.x + deltaX,
+              y: drawnPathEndPos.y + deltaY,
+            };
+          }
         }
       }
+
       memo[memoKey] = result;
       return result;
     },
@@ -358,21 +397,24 @@ const useFormationController = ({
   );
 
   const getActualStartForFormation = useCallback(
-    (dancerId, formationIdx) =>
-      getActualEndPointOfFormation_Internal(
+    (dancerId, formationIdx) => {
+      return getActualEndPointOfFormation_Internal(
         dancerId,
         formationIdx - 1,
         actualEndPositionsMemoRef.current
-      ),
+      );
+    },
     [getActualEndPointOfFormation_Internal]
   );
+
   const getActualEndForFormation = useCallback(
-    (dancerId, formationIdx) =>
-      getActualEndPointOfFormation_Internal(
+    (dancerId, formationIdx) => {
+      return getActualEndPointOfFormation_Internal(
         dancerId,
         formationIdx,
         actualEndPositionsMemoRef.current
-      ),
+      );
+    },
     [getActualEndPointOfFormation_Internal]
   );
 
@@ -380,17 +422,21 @@ const useFormationController = ({
     (dancerId) => {
       const timelineState = currentTimelineStateRef.current;
       const formationIdx = timelineState.index;
+
       if (
         formationIdx === null ||
         !formations ||
         formations.length <= formationIdx
-      )
+      ) {
         return initialPositions[dancerId] || { x: 200, y: 200 };
+      }
+
       const actualStartPosForCurrentFormation = getActualStartForFormation(
         dancerId,
         formationIdx
       );
-      let currentDancerData;
+
+      let currentDancerData = undefined;
       if (
         formations[formationIdx] &&
         typeof formations[formationIdx] === "object" &&
@@ -399,34 +445,48 @@ const useFormationController = ({
       ) {
         currentDancerData = formations[formationIdx][dancerId];
       }
-      if (currentDancerData?.rawStagePath?.length > 0) {
+
+      if (
+        currentDancerData &&
+        currentDancerData.rawStagePath &&
+        currentDancerData.rawStagePath.length > 0
+      ) {
         const rawPath = currentDancerData.rawStagePath;
+
         if (
           rawPath.length === 0 ||
           typeof rawPath[0]?.x !== "number" ||
           typeof rawPath[0]?.y !== "number"
-        )
+        ) {
           return actualStartPosForCurrentFormation;
+        }
         const drawnPathStart = rawPath[0];
         if (
           typeof actualStartPosForCurrentFormation?.x !== "number" ||
           typeof actualStartPosForCurrentFormation?.y !== "number"
-        )
+        ) {
           return initialPositions[dancerId] || { x: 200, y: 200 };
+        }
+
         const deltaX = actualStartPosForCurrentFormation.x - drawnPathStart.x;
         const deltaY = actualStartPosForCurrentFormation.y - drawnPathStart.y;
+
         const effectivePath = rawPath.map((p) => ({
           x: p.x + deltaX,
           y: p.y + deltaY,
         }));
+
         if (effectivePath.length === 0)
           return actualStartPosForCurrentFormation;
         const effectiveTargetPos = effectivePath[effectivePath.length - 1];
+
         const epsilon = 1e-9;
-        if (currentTime < timelineState.effectiveTransitionStart)
+        if (currentTime < timelineState.effectiveTransitionStart) {
           return actualStartPosForCurrentFormation;
-        if (currentTime >= timelineState.effectiveTransitionEnd - epsilon)
+        }
+        if (currentTime >= timelineState.effectiveTransitionEnd - epsilon) {
           return effectiveTargetPos;
+        }
         if (timelineState.isInTransition) {
           if (effectivePath.length === 1) return effectivePath[0];
           return getPositionAlongLinearPath(
@@ -435,8 +495,9 @@ const useFormationController = ({
           );
         }
         return effectiveTargetPos;
+      } else {
+        return actualStartPosForCurrentFormation;
       }
-      return actualStartPosForCurrentFormation;
     },
     [
       formations,
@@ -447,8 +508,114 @@ const useFormationController = ({
     ]
   );
 
+  const smoothPath = useCallback((points) => {
+    const safePoints = points.filter(
+      (p) => typeof p?.x === "number" && typeof p?.y === "number"
+    );
+    if (!safePoints || safePoints.length < 3) return safePoints;
+
+    const smoothed = [safePoints[0]];
+    for (let i = 1; i < safePoints.length - 1; i++) {
+      const prev = safePoints[i - 1];
+      const curr = safePoints[i];
+      const next = safePoints[i + 1];
+      smoothed.push({
+        x: (prev.x + curr.x * 2 + next.x) / 4,
+        y: (prev.y + curr.y * 2 + next.y) / 4,
+      });
+    }
+    smoothed.push(safePoints[safePoints.length - 1]);
+    return smoothed;
+  }, []);
+
+  const cardinalSpline = useCallback((points, tension = 0.5, segments = 10) => {
+    const safePoints = points.filter(
+      (p) => typeof p?.x === "number" && typeof p?.y === "number"
+    );
+    if (!safePoints || safePoints.length < 2) return safePoints;
+    if (safePoints.length === 2) return safePoints;
+
+    const splinePoints = [];
+    const pts = [
+      safePoints[0],
+      ...safePoints,
+      safePoints[safePoints.length - 1],
+    ];
+
+    if (typeof pts[1]?.x !== "number" || typeof pts[1]?.y !== "number")
+      return safePoints;
+    splinePoints.push({ ...pts[1] });
+
+    for (let i = 1; i < pts.length - 2; i++) {
+      const p0 = pts[i - 1];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2];
+      if (
+        typeof p0?.x !== "number" ||
+        typeof p1?.x !== "number" ||
+        typeof p2?.x !== "number" ||
+        typeof p3?.x !== "number" ||
+        typeof p0?.y !== "number" ||
+        typeof p1?.y !== "number" ||
+        typeof p2?.y !== "number" ||
+        typeof p3?.y !== "number"
+      )
+        continue;
+
+      for (let t = 1; t <= segments; t++) {
+        const tNorm = t / segments;
+        const t2 = tNorm * tNorm;
+        const t3 = t2 * tNorm;
+        const s = (1 - tension) / 2;
+        const x =
+          p1.x +
+          (-s * p0.x + s * p2.x) * tNorm +
+          (2 * s * p0.x + (s - 3) * p1.x + (3 - 2 * s) * p2.x - s * p3.x) * t2 +
+          (-s * p0.x + (2 - s) * p1.x + (s - 2) * p2.x + s * p3.x) * t3;
+        const y =
+          p1.y +
+          (-s * p0.y + s * p2.y) * tNorm +
+          (2 * s * p0.y + (s - 3) * p1.y + (3 - 2 * s) * p2.y - s * p3.y) * t2 +
+          (-s * p0.y + (2 - s) * p1.y + (s - 2) * p2.y + s * p3.y) * t3;
+        splinePoints.push({ x, y });
+      }
+    }
+
+    const lastOriginalCtrlPoint = pts[pts.length - 2];
+    if (
+      typeof lastOriginalCtrlPoint?.x !== "number" ||
+      typeof lastOriginalCtrlPoint?.y !== "number"
+    ) {
+      return splinePoints.length > 0 ? splinePoints : safePoints;
+    }
+
+    if (splinePoints.length > 0) {
+      const lastSplinePt = splinePoints[splinePoints.length - 1];
+      if (
+        typeof lastSplinePt?.x !== "number" ||
+        typeof lastSplinePt?.y !== "number"
+      )
+        return splinePoints;
+
+      const isLastPointCorrect =
+        Math.abs(lastSplinePt.x - lastOriginalCtrlPoint.x) < 1e-3 &&
+        Math.abs(lastSplinePt.y - lastOriginalCtrlPoint.y) < 1e-3;
+      if (!isLastPointCorrect) {
+        splinePoints.push({ ...lastOriginalCtrlPoint });
+      } else {
+        splinePoints[splinePoints.length - 1] = { ...lastOriginalCtrlPoint };
+      }
+    } else {
+      if (typeof pts[1]?.x === "number") splinePoints.push({ ...pts[1] });
+      if (pts.length > 2 && typeof pts[pts.length - 2]?.x === "number")
+        splinePoints.push({ ...pts[pts.length - 2] });
+    }
+    return splinePoints;
+  }, []);
+
   const addDancerPath = useCallback(
-    (dancerId, processedPathPoints, pathKind, pathSubKind = null) => {
+    (dancerId, userInputPathPoints, pathMode = "direct", metadata = {}) => {
       if (
         !dancerId ||
         activeGroupIndex === null ||
@@ -458,6 +625,30 @@ const useFormationController = ({
       ) {
         return;
       }
+
+      let finalShapePath = null;
+
+      if (userInputPathPoints && userInputPathPoints.length > 0) {
+        let processedPath;
+        const validPoints = userInputPathPoints.filter(
+          (p) => typeof p?.x === "number" && typeof p?.y === "number"
+        );
+
+        if (validPoints.length === 0) {
+          processedPath = null;
+        } else if (pathMode === "curved" && validPoints.length >= 3) {
+          processedPath = [...validPoints];
+        } else if (pathMode === "cardinal" && validPoints.length >= 2) {
+          processedPath = cardinalSpline(validPoints, 0.5);
+        } else {
+          processedPath = [...validPoints];
+        }
+
+        if (Array.isArray(processedPath) && processedPath.length > 0) {
+          finalShapePath = processedPath;
+        }
+      }
+
       let targetFormationObject = {};
       if (
         formations[activeGroupIndex] &&
@@ -467,21 +658,31 @@ const useFormationController = ({
       ) {
         targetFormationObject = formations[activeGroupIndex];
       }
+
       const existingDancerData = targetFormationObject[dancerId] || {};
+
       const updateData = {
         ...existingDancerData,
-        rawStagePath: processedPathPoints,
-        pathMetadata: { kind: pathKind, subKind: pathSubKind },
+        rawStagePath: finalShapePath,
+        pathMetadata: metadata,
       };
+
       const updatedFormationForIndex = {
         ...targetFormationObject,
         [dancerId]: updateData,
       };
+
       if (typeof onUpdateFormation === "function") {
         onUpdateFormation(activeGroupIndex, updatedFormationForIndex);
       }
     },
-    [activeGroupIndex, formations, onUpdateFormation]
+    [
+      activeGroupIndex,
+      formations,
+      onUpdateFormation,
+      smoothPath,
+      cardinalSpline,
+    ]
   );
 
   return {
@@ -490,7 +691,7 @@ const useFormationController = ({
     addDancerPath,
     getActualStartForFormation,
     getActualEndForFormation,
-    pathUtils: { getPositionAlongLinearPath, lerp },
+    pathUtils: { smoothPath, cardinalSpline, getPositionAlongLinearPath, lerp },
   };
 };
 

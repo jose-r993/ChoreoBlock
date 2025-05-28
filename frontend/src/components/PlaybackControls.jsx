@@ -14,29 +14,10 @@ const PlaybackControls = ({
   onSubdivisionChange,
   beatTimestamps = [],
 }) => {
-  const handleVolumeChange = (e) => onVolumeChange(parseFloat(e.target.value));
-  const handleDecreaseOffset = () => onOffsetChange(markerOffset - 1);
-  const handleIncreaseOffset = () => onOffsetChange(markerOffset + 1);
-
   return (
     <div className="playback-controls">
       <section className="playback-section">
         <h3 className="section-title">Playback</h3>
-
-        <div className="control-group">
-          <label className="control-label">Volume</label>
-          <div className="volume-control">
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              value={volume}
-              onChange={handleVolumeChange}
-            />
-            <span className="volume-value">{Math.round(volume * 100)}%</span>
-          </div>
-        </div>
       </section>
 
       <section className="markers-section">
@@ -70,19 +51,6 @@ const PlaybackControls = ({
             <option value="4">Quarter (every 4th marker)</option>
           </select>
         </div>
-
-        {/* <div className="control-group">
-          <label className="control-label">Beat Offset</label>
-          <div className="offset-controls">
-            <button onClick={handleDecreaseOffset} className="offset-button">
-              −
-            </button>
-            <span className="offset-value">{markerOffset}</span>
-            <button onClick={handleIncreaseOffset} className="offset-button">
-              +
-            </button>
-          </div>
-        </div> */}
       </section>
     </div>
   );

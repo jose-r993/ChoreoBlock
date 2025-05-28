@@ -1,25 +1,13 @@
 import React, { useState } from "react";
 import CustomBeatGroups from "./CustomBeatGroups";
-import PlaybackControls from "./PlaybackControls";
 import DancerManagement from "./DancerManagement";
 import TransitionControls from "./TransitionControls";
 import PathDrawing from "./PathDrawing";
 import "../styles/SideBar.scss";
-import volumeIcon from "../assets/volumeIcon.svg";
 import stylusIcon from "../assets/stylusIcon.svg";
 import dancerIcon from "../assets/dancerIcon.svg";
 
 const SideBar = ({
-  currentZoom,
-  onZoomChange,
-  volume,
-  onVolumeChange,
-  groupSize,
-  onGroupSizeChange,
-  markerOffset,
-  onOffsetChange,
-  subdivisionFactor,
-  onSubdivisionChange,
   customGroups,
   onAddGroup,
   onUpdateGroup,
@@ -42,10 +30,11 @@ const SideBar = ({
   onEditDancer,
   onUpdateFormation,
   setDancerTransitionType,
-  onAddDancerPath,
   currentPathMode,
   onPathModeChange,
   onAddDancerPathForSidebar,
+  selectedDancerIds,
+  onDancersSelected,
 }) => {
   const [activeTab, setActiveTab] = useState("beatGroups");
 
@@ -64,26 +53,6 @@ const SideBar = ({
   };
 
   const tabs = [
-    {
-      id: "playback",
-      label: "Playback",
-      icon: volumeIcon,
-      component: (
-        <PlaybackControls
-          currentZoom={currentZoom}
-          onZoomChange={onZoomChange}
-          volume={volume}
-          onVolumeChange={onVolumeChange}
-          groupSize={groupSize}
-          onGroupSizeChange={onGroupSizeChange}
-          markerOffset={markerOffset}
-          onOffsetChange={onOffsetChange}
-          subdivisionFactor={subdivisionFactor}
-          onSubdivisionChange={onSubdivisionChange}
-          beatTimestamps={beatTimestamps}
-        />
-      ),
-    },
     {
       id: "beatGroups",
       label: "Beat Groups",
@@ -146,8 +115,10 @@ const SideBar = ({
           activeGroupIndex={activeGroupIndex}
           formations={formations}
           onAddDancerPathForSidebar={onAddDancerPathForSidebar}
-          currentPathMode={currentPathMode}
           onPathModeChange={onPathModeChange}
+          currentPathMode={currentPathMode}
+          selectedDancerIds={selectedDancerIds}
+          onDancersSelected={onDancersSelected}
         />
       ),
     },

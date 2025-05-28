@@ -3,26 +3,32 @@
 .stage-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
   width: 100%;
-  background-color: variables.$background-color;
+  height: 100%;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 
   .stage-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 1rem;
+    padding: 8px;
+    background: #2a2a2a;
+    border-bottom: 1px solid #333;
 
     h2 {
-      color: #f5f5f5;
-      font-size: 1rem;
-      font-weight: 600;
       margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #fff;
     }
 
     .stage-info {
-      color: #bbb;
-      font-size: 0.85rem;
+      flex: 1;
+      margin: 0 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #888;
     }
 
     .stage-controls {
@@ -36,19 +42,19 @@
         gap: 0.5rem;
 
         label {
-          color: #bbb;
           font-size: 0.75rem;
+          color: #bbb;
         }
 
         .transition-input {
           width: 3rem;
           padding: 0.25rem;
+          font-size: 0.75rem;
+          text-align: center;
           background-color: #0c1821;
           color: #f5f5f5;
           border: 1px solid #324a5f;
           border-radius: 0.25rem;
-          font-size: 0.75rem;
-          text-align: center;
 
           &:focus {
             outline: none;
@@ -59,19 +65,21 @@
 
       .path-toggle {
         padding: 0.35rem 0.65rem;
+        font-size: 0.75rem;
         background-color: #324a5f;
         color: #f5f5f5;
         border: none;
         border-radius: 0.25rem;
-        font-size: 0.75rem;
         cursor: pointer;
         transition: background-color 0.2s;
 
         &:hover {
           background-color: #3a587d;
         }
+
         &.active {
           background-color: #8b2635;
+
           &:hover {
             background-color: #a13040;
           }
@@ -85,11 +93,11 @@
 
         .path-mode {
           padding: 0.25rem 0.5rem;
+          font-size: 0.7rem;
           background-color: #0c1821;
           color: #bbb;
           border: 1px solid #324a5f;
           border-radius: 0.25rem;
-          font-size: 0.7rem;
           cursor: pointer;
           transition: all 0.2s;
 
@@ -97,10 +105,53 @@
             background-color: #1b2a41;
             color: #f5f5f5;
           }
+
           &.active {
             background-color: #324a5f;
             color: #f5f5f5;
           }
+        }
+      }
+    }
+
+    .stage-mode-controls {
+      display: flex;
+      gap: 8px;
+
+      .mode-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 6px;
+        color: rgba(255, 255, 255, 0.6);
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover:not(:disabled) {
+          background: rgba(255, 255, 255, 0.15);
+          border-color: rgba(255, 255, 255, 0.3);
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        &.active {
+          background: rgba(0, 170, 255, 0.2);
+          border-color: #00aaff;
+          color: #00aaff;
+        }
+
+        &:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        svg {
+          width: 16px;
+          height: 16px;
         }
       }
     }
@@ -111,11 +162,10 @@
     position: relative;
     background-color: #1a1a1a;
     overflow: hidden;
+    user-select: none;
+    cursor: default;
 
-    &.drawing-mode {
-      cursor: crosshair;
-    }
-
+    &.drawing-mode,
     &.marquee-active {
       cursor: crosshair;
     }
@@ -127,8 +177,11 @@
       right: 0;
       bottom: 0;
       background-size: 40px 40px;
+      background-size: 50px 50px;
       background-image: linear-gradient(to right, #333 1px, transparent 1px),
-        linear-gradient(to bottom, #333 1px, transparent 1px);
+        linear-gradient(to bottom, #333 1px, transparent 1px),
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
       pointer-events: none;
     }
 
@@ -139,10 +192,11 @@
       transform: translate(-50%, -50%);
       text-align: center;
       color: rgba(255, 255, 255, 0.5);
+      font-size: 14px;
 
       p {
-        font-size: 16px;
         margin: 8px 0;
+        font-size: 16px;
       }
 
       .hint {
@@ -151,40 +205,82 @@
       }
     }
 
+    .marquee-selection-box {
+      position: absolute;
+      border: 1px dashed rgba(255, 255, 255, 0.8);
+      background: rgba(255, 255, 255, 0.1);
+      pointer-events: none;
+      z-index: 999;
+    }
+
     .dancer {
       position: absolute;
       transform: translate(-50%, -50%);
       cursor: grab;
       z-index: 10;
       user-select: none;
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
       pointer-events: auto;
 
       &:hover {
         z-index: 20;
+
         .dancer-name {
           opacity: 1;
         }
       }
 
+      &.selected,
       &.selected-by-marquee {
+        svg {
+          filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8));
+          outline: 2px solid #fff;
+          outline-offset: 2px;
+          border-radius: 50%;
+        }
+
         outline: 2px solid #007bff;
         background-color: rgba(0, 123, 255, 0.3);
       }
 
-      &.path-active::after {
-        content: "";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        border: 2px dashed rgba(255, 255, 255, 0.5);
-        animation: pulse 1.5s infinite;
+      &.path-active {
+        &::after {
+          content: "";
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          border: 2px dashed rgba(255, 255, 255, 0.5);
+          animation: pulse 1.5s infinite;
+        }
+
+        svg {
+          filter: drop-shadow(0 0 8px rgba(255, 0, 0, 0.9));
+        }
+      }
+
+      &:hover:not(.path-active) svg {
+        filter: drop-shadow(0 2px 6px rgba(255, 255, 255, 0.3));
+      }
+
+      svg {
+        cursor: grab;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+        transition: all 0.2s ease;
+      }
+
+      &.dragging svg {
+        cursor: grabbing;
+      }
+
+      &.drawing-mode svg {
+        cursor: crosshair;
       }
 
       .dancer-name {
@@ -194,33 +290,20 @@
         transform: translateX(-50%);
         white-space: nowrap;
         font-size: 12px;
-        color: white;
-        text-shadow: 0 0 2px black, 0 0 3px black;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 2px 6px;
+        border-radius: 3px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
         opacity: 0.7;
         transition: opacity 0.2s;
         pointer-events: none;
-        user-select: none;
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-      }
-
-      svg {
-        cursor: grab;
-      }
-      &.dragging svg {
-        cursor: grabbing;
-      }
-    }
-
-    &.drawing-mode {
-      .dancer svg {
-        cursor: crosshair;
       }
     }
   }
 
-  .path-preview {
+  .path-preview,
+  .paths-display-svg {
     position: absolute;
     top: 0;
     left: 0;
@@ -228,6 +311,11 @@
     height: 100%;
     pointer-events: none;
     z-index: 5;
+
+    path {
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
   }
 
   .existing-paths {

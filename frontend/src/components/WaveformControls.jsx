@@ -6,11 +6,14 @@ import pauseIcon from "../assets/pauseIcon.svg";
 const WaveformControls = ({
   isPlaying,
   onPlayPause,
+  onVolumeChange,
+  volume,
   currentTime,
   timeRemaining,
   bpm,
   songName,
 }) => {
+  const handleVolumeChange = (e) => onVolumeChange(parseFloat(e.target.value));
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -41,6 +44,18 @@ const WaveformControls = ({
         </button>
         <div className="time-remaining time-display">
           {formatTimeRemaining()}
+        </div>
+        <div className="control-group">
+          <label className="control-label">Volume: </label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={volume}
+            onChange={handleVolumeChange}
+          />
+          <span className="volume-value">{Math.round(volume * 100)}%</span>
         </div>
       </div>
     </div>

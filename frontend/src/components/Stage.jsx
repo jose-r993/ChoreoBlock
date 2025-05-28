@@ -21,7 +21,9 @@ const Stage = ({
   getActualStartForFormation,
   getActualEndForFormation,
   formations,
+  onUpdateDancerPosition,
 }) => {
+  const [stageMode, setStageMode] = useState("select");
   const [isCurrentlyDrawingPath, setIsCurrentlyDrawingPath] = useState(false);
   const [pathInitiatorDancer, setPathInitiatorDancer] = useState(null);
   const [currentDrawingPath, setCurrentDrawingPath] = useState([]);
@@ -31,6 +33,11 @@ const Stage = ({
     ctrlKey: false,
   });
 
+  const [isDraggingDancer, setIsDraggingDancer] = useState(false);
+  const [draggingDancer, setDraggingDancer] = useState(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
   const [marqueeStartCoords, setMarqueeStartCoords] = useState({ x: 0, y: 0 });
   const [marqueeCurrentCoords, setMarqueeCurrentCoords] = useState({
     x: 0,
@@ -57,42 +64,36 @@ const Stage = ({
 
   const checkDancerInMarquee = useCallback((dancerPos, normalizedMarquee) => {
     if (!dancerPos || !normalizedMarquee) return false;
-    const dancerRight = dancerPos.x + DANCER_WIDTH;
-    const dancerBottom = dancerPos.y + DANCER_HEIGHT;
+    const dancerCenterX = dancerPos.x + DANCER_WIDTH / 2;
+    const dancerCenterY = dancerPos.y + DANCER_HEIGHT / 2;
     const marqueeRight = normalizedMarquee.x + normalizedMarquee.width;
     const marqueeBottom = normalizedMarquee.y + normalizedMarquee.height;
     return (
-      dancerPos.x < marqueeRight &&
-      dancerRight > normalizedMarquee.x &&
-      dancerPos.y < marqueeBottom &&
-      dancerBottom > normalizedMarquee.y
+      dancerCenterX >= normalizedMarquee.x &&
+      dancerCenterX <= marqueeRight &&
+      dancerCenterY >= normalizedMarquee.y &&
+      dancerCenterY <= marqueeBottom
     );
   }, []);
 
   const handleStageMouseDown = useCallback(
     (e) => {
       const coords = getStageCoords(e);
-      if (!coords || activeGroupIndex === null) return;
+      if (!coords) return;
 
-      if (e.target === stageRef.current && !isStageInPathDrawingMode) {
+      if (e.target === stageRef.current && stageMode === "select") {
         e.preventDefault();
+        setIsMarqueeSelecting(true);
         setMarqueeStartCoords(coords);
         setMarqueeCurrentCoords(coords);
         if (onDancersSelected) onDancersSelected(new Set());
       }
     },
-    [
-      activeGroupIndex,
-      getStageCoords,
-      onDancersSelected,
-      isStageInPathDrawingMode,
-    ]
+    [getStageCoords, onDancersSelected, stageMode]
   );
 
   const handleDancerMouseDown = useCallback(
     (e, dancer) => {
-      if (activeGroupIndex === null) return;
-
       e.stopPropagation();
       const coords = getStageCoords(e);
       if (!coords) return;
@@ -100,7 +101,11 @@ const Stage = ({
 
       const startPos = getDancerPosition(dancer.id);
 
-      if (isStageInPathDrawingMode) {
+      if (
+        stageMode === "draw" &&
+        isStageInPathDrawingMode &&
+        activeGroupIndex !== null
+      ) {
         setDrawingModifiers({
           shiftKey: e.shiftKey,
           altKey: e.altKey,
@@ -111,21 +116,35 @@ const Stage = ({
         setCurrentDrawingPath(startPos ? [startPos] : [coords]);
         setIsCurrentlyDrawingPath(true);
 
-        if (
-          (!selectedDancerIds || selectedDancerIds.size === 0) &&
-          onDancersSelected
-        ) {
-          onDancersSelected(new Set([dancer.id]));
+        if (!selectedDancerIds || !selectedDancerIds.has(dancer.id)) {
+          if (e.shiftKey || e.ctrlKey || e.metaKey) {
+            const newSelection = new Set(selectedDancerIds);
+            newSelection.add(dancer.id);
+            if (onDancersSelected) onDancersSelected(newSelection);
+          } else {
+            if (onDancersSelected) onDancersSelected(new Set([dancer.id]));
+          }
         }
-      } else {
-        if (onSetDancerPosition) {
-          onSetDancerPosition(
-            dancer.id,
-            startPos.x,
-            startPos.y,
-            activeGroupIndex
-          );
+      } else if (stageMode === "select") {
+        if (e.shiftKey || e.ctrlKey || e.metaKey) {
+          const newSelection = new Set(selectedDancerIds);
+          if (newSelection.has(dancer.id)) {
+            newSelection.delete(dancer.id);
+          } else {
+            newSelection.add(dancer.id);
+          }
+          if (onDancersSelected) onDancersSelected(newSelection);
+        } else {
+          if (onDancersSelected) onDancersSelected(new Set([dancer.id]));
         }
+
+        setIsDraggingDancer(true);
+        setDraggingDancer(dancer);
+        const dancerPos = getDancerPosition(dancer.id);
+        setDragOffset({
+          x: coords.x - dancerPos.x,
+          y: coords.y - dancerPos.y,
+        });
       }
     },
     [
@@ -135,66 +154,71 @@ const Stage = ({
       isStageInPathDrawingMode,
       selectedDancerIds,
       onDancersSelected,
-      onSetDancerPosition,
+      stageMode,
     ]
   );
 
   const handleDocumentMouseMove = useCallback(
     (e) => {
-      if (marqueeStartCoords.x !== 0 || marqueeStartCoords.y !== 0) {
-        if (!isStageInPathDrawingMode) {
-          const coords = getStageCoords(e);
-          if (!coords) return;
-          e.preventDefault();
-          setMarqueeCurrentCoords(coords);
-
-          const normalizedMarquee = calculateNormalizedMarquee();
-          const currentlySelectedDancers = new Set();
-          dancers.forEach((dancer) => {
-            const pos = getDancerPosition(dancer.id);
-            if (checkDancerInMarquee(pos, normalizedMarquee)) {
-              currentlySelectedDancers.add(dancer.id);
-            }
-          });
-          if (onDancersSelected) {
-            onDancersSelected(currentlySelectedDancers);
-          }
-          return;
-        }
-      }
-
-      if (!isCurrentlyDrawingPath) return;
-
       const coords = getStageCoords(e);
       if (!coords) return;
 
-      e.preventDefault();
+      if (isCurrentlyDrawingPath && stageMode === "draw") {
+        e.preventDefault();
 
-      setDrawingModifiers((prev) => ({
-        ...prev,
-        shiftKey: e.shiftKey,
-        altKey: e.altKey,
-        ctrlKey: e.ctrlKey || e.metaKey,
-      }));
+        setDrawingModifiers((prev) => ({
+          ...prev,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey,
+          ctrlKey: e.ctrlKey || e.metaKey,
+        }));
 
-      if (currentDrawingPath.length > 0) {
-        const last = currentDrawingPath[currentDrawingPath.length - 1];
-        if (Math.hypot(coords.x - last.x, coords.y - last.y) > 5) {
-          setCurrentDrawingPath((prev) => [...prev, coords]);
+        if (currentDrawingPath.length > 0) {
+          const last = currentDrawingPath[currentDrawingPath.length - 1];
+          if (Math.hypot(coords.x - last.x, coords.y - last.y) > 5) {
+            setCurrentDrawingPath((prev) => [...prev, coords]);
+          }
         }
+      } else if (isDraggingDancer && draggingDancer && stageMode === "select") {
+        e.preventDefault();
+        const newX = coords.x - dragOffset.x;
+        const newY = coords.y - dragOffset.y;
+
+        if (onUpdateDancerPosition) {
+          onUpdateDancerPosition(draggingDancer.id, newX, newY);
+        }
+      } else if (isMarqueeSelecting && stageMode === "select") {
+        e.preventDefault();
+        setMarqueeCurrentCoords(coords);
+
+        const normalizedMarquee = calculateNormalizedMarquee();
+        const newSelection = new Set();
+
+        dancers.forEach((dancer) => {
+          const position = getDancerPosition(dancer.id);
+          if (checkDancerInMarquee(position, normalizedMarquee)) {
+            newSelection.add(dancer.id);
+          }
+        });
+
+        if (onDancersSelected) onDancersSelected(newSelection);
       }
     },
     [
       isCurrentlyDrawingPath,
+      isDraggingDancer,
+      isMarqueeSelecting,
       currentDrawingPath,
       getStageCoords,
-      marqueeStartCoords,
-      isStageInPathDrawingMode,
       calculateNormalizedMarquee,
       dancers,
       getDancerPosition,
       checkDancerInMarquee,
       onDancersSelected,
+      stageMode,
+      draggingDancer,
+      dragOffset,
+      onUpdateDancerPosition,
     ]
   );
 
@@ -203,7 +227,8 @@ const Stage = ({
       if (
         isCurrentlyDrawingPath &&
         pathInitiatorDancer &&
-        currentDrawingPath.length > 0
+        currentDrawingPath.length > 0 &&
+        stageMode === "draw"
       ) {
         const processedPath = derivePathFromGesture(currentDrawingPath, {
           shiftKey: drawingModifiers.shiftKey,
@@ -231,16 +256,28 @@ const Stage = ({
         return;
       }
 
-      setMarqueeStartCoords({ x: 0, y: 0 });
-      setMarqueeCurrentCoords({ x: 0, y: 0 });
+      if (isDraggingDancer) {
+        setIsDraggingDancer(false);
+        setDraggingDancer(null);
+        setDragOffset({ x: 0, y: 0 });
+      }
+
+      if (isMarqueeSelecting) {
+        setIsMarqueeSelecting(false);
+        setMarqueeStartCoords({ x: 0, y: 0 });
+        setMarqueeCurrentCoords({ x: 0, y: 0 });
+      }
     },
     [
       isCurrentlyDrawingPath,
+      isDraggingDancer,
+      isMarqueeSelecting,
       pathInitiatorDancer,
       currentDrawingPath,
       onSavePath,
       pathMode,
       drawingModifiers,
+      stageMode,
     ]
   );
 
@@ -347,6 +384,7 @@ const Stage = ({
   };
 
   const renderMarqueeRectangle = () => {
+    if (!isMarqueeSelecting) return null;
     const normMarquee = calculateNormalizedMarquee();
     if (normMarquee.width < 1 && normMarquee.height < 1) return null;
     return (
@@ -367,7 +405,9 @@ const Stage = ({
       activeGroupIndex === null ||
       !dancers ||
       dancers.length === 0 ||
-      !formations
+      !formations ||
+      !selectedDancerIds ||
+      selectedDancerIds.size === 0
     )
       return null;
 
@@ -387,6 +427,8 @@ const Stage = ({
     const pathElements = [];
 
     dancers.forEach((dancer) => {
+      if (!selectedDancerIds.has(dancer.id)) return;
+
       const dancerData = formationObject[dancer.id];
       if (
         !dancerData ||
@@ -567,11 +609,32 @@ const Stage = ({
       <div className="stage-header">
         <h2>Choreography Stage</h2>
         <div className="stage-info">{getFormationDisplayName()}</div>
+        <div className="stage-mode-controls">
+          <button
+            className={`mode-btn ${stageMode === "select" ? "active" : ""}`}
+            onClick={() => setStageMode("select")}
+            title="Select Mode"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M0 2l7 0l3 3l0 4l-2 0l0-3l-2-2l0 9l2 0l0 2l-6 0l0-2l2 0l0-9l-4 0z" />
+            </svg>
+          </button>
+          <button
+            className={`mode-btn ${stageMode === "draw" ? "active" : ""}`}
+            onClick={() => setStageMode("draw")}
+            title="Draw Mode"
+            disabled={!isStageInPathDrawingMode}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
+            </svg>
+          </button>
+        </div>
       </div>
       <div
         ref={stageRef}
         className={`stage-area ${
-          isStageInPathDrawingMode ? "drawing-mode" : ""
+          stageMode === "draw" && isStageInPathDrawingMode ? "drawing-mode" : ""
         }`}
         onMouseDown={handleStageMouseDown}
         onTouchStart={handleStageMouseDown}
@@ -604,29 +667,31 @@ const Stage = ({
           ) {
             return null;
           }
-          const isSelectedByMarquee =
+          const isSelected =
             selectedDancerIds && selectedDancerIds.has(dancer.id);
           return (
             <motion.div
               key={dancer.id}
               className={`dancer ${
                 pathInitiatorDancer?.id === dancer.id ? "path-active" : ""
-              } ${isSelectedByMarquee ? "selected-by-marquee" : ""}`}
+              } ${isSelected ? "selected" : ""}`}
               style={{
                 position: "absolute",
                 left: 0,
                 top: 0,
                 cursor:
-                  isStageInPathDrawingMode && activeGroupIndex !== null
+                  stageMode === "draw" &&
+                  isStageInPathDrawingMode &&
+                  activeGroupIndex !== null
                     ? "crosshair"
-                    : activeGroupIndex !== null
+                    : stageMode === "select"
                     ? "grab"
                     : "default",
                 touchAction: "none",
                 zIndex:
                   pathInitiatorDancer?.id === dancer.id
                     ? 10
-                    : isSelectedByMarquee
+                    : isSelected
                     ? 6
                     : 5,
               }}
@@ -657,5 +722,4 @@ const Stage = ({
     </div>
   );
 };
-
 export default Stage;

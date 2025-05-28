@@ -13,6 +13,7 @@ import WaveformControls from "./WaveformControls";
 import "../styles/Waveform.scss";
 
 const Waveform = ({
+  onVolumeChange,
   audioFile,
   beatTimestamps = [],
   bpm,
@@ -1061,6 +1062,8 @@ const Waveform = ({
         timeRemaining={timeRemaining}
         bpm={bpm}
         songName={songName}
+        volume={volume}
+        onVolumeChange={onVolumeChange}
       />
       <div className="formations-regions-header">
         <div className="snap-options">

@@ -1,422 +1,206 @@
 .path-drawing {
-  padding: 15px;
+  padding: 16px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  margin-bottom: 16px;
 
   h3 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    font-size: 18px;
-    color: #eee;
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    color: #fff;
+    font-weight: 600;
   }
 
   h4 {
-    margin-top: 15px;
-    margin-bottom: 10px;
-    font-size: 16px;
-    color: #eee;
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: #ccc;
+    font-weight: 500;
   }
 
   .instructions {
-    background-color: #2a2a2a;
-    border-radius: 5px;
-    padding: 12px 15px;
-    margin-bottom: 20px;
-
-    p {
-      margin: 5px 0;
-      color: #ddd;
-      font-size: 14px;
-      line-height: 1.4;
-    }
-
-    .step {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      background-color: #444;
-      border-radius: 50%;
-      text-align: center;
-      line-height: 20px;
-      margin-right: 8px;
-      font-weight: bold;
-      color: #eee;
-    }
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.5;
 
     &.warning {
-      background-color: rgba(255, 150, 0, 0.2);
-      border-left: 3px solid #ff9600;
+      background: rgba(255, 170, 0, 0.1);
+      border: 1px solid rgba(255, 170, 0, 0.3);
+      color: #ffaa00;
     }
 
     &.highlight {
-      background-color: rgba(0, 150, 255, 0.2);
-      border-left: 3px solid #0080ff;
+      background: rgba(0, 170, 255, 0.1);
+      border: 1px solid rgba(0, 170, 255, 0.3);
+      color: #00aaff;
+    }
+
+    p {
+      margin: 0;
+      &:not(:last-child) {
+        margin-bottom: 8px;
+      }
+    }
+
+    .selection-info {
+      font-weight: 600;
+      color: #fff;
+    }
+
+    b {
+      color: #fff;
+      font-weight: 600;
     }
   }
 
   .path-mode-selector {
-    background-color: #2a2a2a;
-    border-radius: 5px;
-    padding: 15px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 
     .path-modes {
       display: flex;
-      gap: 10px;
+      gap: 12px;
+      margin-top: 8px;
 
       .path-mode-btn {
         flex: 1;
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 10px;
-        background-color: #333;
-        border: 1px solid #555;
-        border-radius: 4px;
-        color: #eee;
+        gap: 8px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: #ccc;
         cursor: pointer;
         transition: all 0.2s ease;
-
-        .preview-line {
-          width: 80%;
-          height: 30px;
-          margin-top: 10px;
-          position: relative;
-
-          &::before {
-            content: "";
-            position: absolute;
-            left: 0;
-            top: 50%;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background-color: #00ff00;
-            transform: translate(-50%, -50%);
-          }
-
-          &::after {
-            content: "";
-            position: absolute;
-            right: 0;
-            top: 50%;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background-color: #ff0000;
-            transform: translate(50%, -50%);
-          }
-
-          &.direct {
-            &::before,
-            &::after {
-              z-index: 2;
-            }
-
-            background-color: transparent;
-            background-image: linear-gradient(
-              to right,
-              transparent 6px,
-              #aaa 6px,
-              #aaa calc(100% - 6px),
-              transparent calc(100% - 6px)
-            );
-            background-size: 100% 2px;
-            background-position: center;
-            background-repeat: no-repeat;
-          }
-
-          &.curved {
-            &::before,
-            &::after {
-              z-index: 2;
-            }
-
-            background-color: transparent;
-            background-image: radial-gradient(
-              circle at 50% 0%,
-              transparent 0%,
-              transparent 60%,
-              #aaa 60%,
-              #aaa 65%,
-              transparent 65%,
-              transparent 100%
-            );
-            background-size: 100% 100%;
-            background-position: center;
-            background-repeat: no-repeat;
-          }
-
-          &.cardinal {
-            &::before,
-            &::after {
-              z-index: 2;
-            }
-
-            background-color: transparent;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 30'%3E%3Cpath d='M0,15 C20,5 40,25 60,5 C80,25 100,15 100,15' stroke='%23aaa' fill='none' stroke-width='2'/%3E%3C/svg%3E");
-            background-size: 100% 100%;
-            background-position: center;
-            background-repeat: no-repeat;
-          }
-        }
+        font-size: 14px;
+        font-weight: 500;
 
         &:hover {
-          background-color: #444;
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.2);
+          color: #fff;
         }
 
         &.active {
-          background-color: #0080ff;
-          border-color: #0080ff;
+          background: rgba(0, 170, 255, 0.1);
+          border-color: #00aaff;
+          color: #00aaff;
+        }
+
+        .preview-line {
+          width: 40px;
+          height: 2px;
+          background: currentColor;
+          position: relative;
+
+          &.direct {
+            background: linear-gradient(
+              90deg,
+              currentColor 0%,
+              currentColor 100%
+            );
+          }
+
+          &.curved {
+            height: 20px;
+            background: none;
+            &::before {
+              content: "";
+              position: absolute;
+              top: 50%;
+              left: 0;
+              width: 100%;
+              height: 2px;
+              background: currentColor;
+              border-radius: 50%;
+              transform: translateY(-50%) rotate(-5deg);
+            }
+          }
         }
       }
     }
   }
 
-  .dancers-list {
-    background-color: #2a2a2a;
-    border-radius: 5px;
-    padding: 15px;
-    margin-bottom: 20px;
-
+  .dancers-list-for-clear {
     .empty-list {
       padding: 20px;
       text-align: center;
-      color: #888;
-      font-style: italic;
+      color: #666;
+      font-size: 13px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 6px;
+      border: 1px dashed rgba(255, 255, 255, 0.1);
     }
 
     .dancer-items {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
 
-      .dancer-item {
+      .dancer-item-manage {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        padding: 10px;
-        background-color: #333;
-        border-radius: 4px;
+        justify-content: space-between;
+        padding: 8px 12px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 6px;
         cursor: pointer;
+        transition: all 0.2s ease;
 
         &:hover {
-          background-color: #444;
+          background: rgba(255, 255, 255, 0.05);
+          border-color: rgba(255, 255, 255, 0.15);
         }
 
         &.selected {
-          background-color: #0080ff;
-
-          .dancer-name {
-            color: white;
-          }
-
-          .path-status {
-            color: rgba(255, 255, 255, 0.8);
-          }
+          background: rgba(255, 255, 255, 0.1);
+          border-color: #fff;
+          box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
         }
 
         .dancer-info {
           display: flex;
           align-items: center;
+          gap: 8px;
 
           svg {
-            margin-right: 8px;
+            flex-shrink: 0;
           }
 
           .dancer-name {
-            color: #eee;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 500;
           }
         }
 
-        .path-status {
-          font-size: 12px;
-          color: #888;
-        }
-
-        .clear-path-btn {
-          font-size: 12px;
+        .clear-path-btn-small {
           padding: 4px 8px;
-          background-color: #555;
-          border: none;
-          border-radius: 3px;
-          color: #eee;
+          background: rgba(255, 0, 0, 0.2);
+          border: 1px solid rgba(255, 0, 0, 0.4);
+          border-radius: 4px;
+          color: #ff6666;
+          font-size: 11px;
           cursor: pointer;
+          transition: all 0.2s ease;
 
           &:hover {
-            background-color: #d32f2f;
-            color: white;
+            background: rgba(255, 0, 0, 0.3);
+            border-color: rgba(255, 0, 0, 0.6);
+            color: #ff8888;
           }
         }
-      }
-    }
-  }
 
-  .path-tips {
-    background-color: #2a2a2a;
-    border-radius: 5px;
-    padding: 15px;
-
-    h4 {
-      margin-top: 0;
-      margin-bottom: 10px;
-    }
-
-    ul {
-      margin: 0;
-      padding: 0 0 0 20px;
-
-      li {
-        color: #ddd;
-        margin-bottom: 5px;
-        font-size: 14px;
-        line-height: 1.4;
-
-        strong {
-          color: #eee;
+        .path-status-small {
+          font-size: 11px;
+          color: #666;
+          font-style: italic;
         }
-      }
-    }
-  }
-}
-
-.stage-area {
-  &.drawing-mode {
-    cursor: crosshair;
-
-    /* Visual hint when shift is pressed */
-    &.shift-pressed {
-      cursor: move;
-
-      &::after {
-        content: "↕ ↔";
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        background: rgba(0, 0, 0, 0.7);
-        color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        pointer-events: none;
-      }
-    }
-  }
-}
-
-/* Path preview enhancements */
-.path-preview {
-  path {
-    transition: stroke-dasharray 0.2s ease;
-  }
-}
-
-/* PathDrawing.scss additions */
-.path-drawing {
-  .drawing-tips {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    padding: 12px;
-    margin-top: 8px;
-
-    h5 {
-      margin: 0 0 8px 0;
-      color: #fff;
-      font-size: 14px;
-    }
-
-    ul {
-      margin: 0;
-      padding-left: 20px;
-
-      li {
-        margin: 4px 0;
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.8);
-
-        strong {
-          color: #fff;
-        }
-      }
-    }
-  }
-
-  .toggle-advanced-btn {
-    width: 100%;
-    margin: 12px 0;
-    padding: 8px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    color: #fff;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    transition: all 0.2s ease;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.15);
-      border-color: rgba(255, 255, 255, 0.3);
-    }
-  }
-
-  .path-mode-hints {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    padding: 12px;
-    margin: 12px 0;
-
-    .hint-modes {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-
-      .hint-mode-btn {
-        flex: 1;
-        padding: 8px;
-        background: rgba(255, 255, 255, 0.1);
-        border: 2px solid transparent;
-        border-radius: 6px;
-        color: #fff;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        text-align: center;
-
-        &.active {
-          background: rgba(255, 255, 255, 0.2);
-          border-color: rgba(255, 255, 255, 0.5);
-        }
-
-        &:hover:not(.active) {
-          background: rgba(255, 255, 255, 0.15);
-        }
-
-        .description {
-          display: block;
-          font-size: 10px;
-          color: rgba(255, 255, 255, 0.6);
-          margin-top: 2px;
-        }
-      }
-    }
-  }
-
-  .path-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    .path-type-indicator {
-      font-size: 14px;
-      opacity: 0.8;
-
-      &.straight {
-        color: #00aaff;
-      }
-
-      &.curve {
-        color: #ff5500;
-      }
-
-      &.hold {
-        color: #ffaa00;
       }
     }
   }

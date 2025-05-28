@@ -55,9 +55,19 @@
       margin-left: variables.$spacing-md;
     }
 
+    .control-group {
+      position: absolute;
+      right: 1rem;
+
+      input {
+        height: 8px;
+      }
+    }
+
     .time-display,
     .bpm-display,
-    .song-name {
+    .song-name,
+    .control-group {
       padding: variables.$spacing-xs variables.$spacing-sm;
       background-color: rgba(variables.$background-color, 0.6);
       border-radius: variables.$border-radius-sm;
@@ -65,7 +75,6 @@
       font-family: monospace;
       font-size: variables.$font-size-sm;
       border: 1px solid variables.$border-color;
-      position: relative;
       display: inline-block;
       min-width: 42px;
     }
