@@ -73,6 +73,7 @@ const SideBar = ({
           beatTimestamps={beatTimestamps}
           onJumpToPosition={onJumpToPosition}
           activeGroupIndex={activeGroupIndex}
+          onUpdateGroup={onUpdateGroup}
         />
       ),
     },
@@ -90,25 +91,9 @@ const SideBar = ({
       ),
     },
     {
-      id: "transitions",
-      label: "Transitions",
-      icon: stylusIcon,
-      component: (
-        <TransitionControls
-          activeGroupIndex={activeGroupIndex}
-          customGroups={customGroups}
-          formations={formations}
-          dancers={dancers}
-          onUpdateGroup={onUpdateGroup}
-          onUpdateFormation={onUpdateFormation}
-          setDancerTransitionType={setDancerTransitionType}
-        />
-      ),
-    },
-    {
       id: "paths",
       label: "Paths",
-      icon: dancerIcon,
+      icon: stylusIcon,
       component: (
         <PathDrawing
           dancers={dancers}

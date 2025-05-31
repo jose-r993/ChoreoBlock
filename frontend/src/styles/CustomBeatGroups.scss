@@ -176,8 +176,8 @@
   }
 
   .group-item {
-    background-color: #0c1821;
-    border-radius: 0.25rem;
+    background-color: #132635;
+    border-radius: 0.5rem;
     margin-bottom: 0.5rem;
     padding: 0.75rem;
 
@@ -200,9 +200,25 @@
     }
 
     .group-name {
+      text-align: start;
       flex: 1;
       font-weight: 500;
       color: #f5f5f5;
+      background: none;
+      height: 24px;
+      padding: 0;
+      border: none;
+      display: flex;
+      align-items: center;
+      transition: background-color 0.2s ease;
+
+      &:hover {
+        background-color: rgba(50, 74, 95, 0.2);
+      }
+    }
+
+    .group-name--chevron {
+      margin-right: 0.5rem;
     }
 
     .remove-button {
@@ -245,6 +261,101 @@
 
       .detail-value {
         font-weight: 500;
+      }
+    }
+  }
+}
+
+// Group transition controls
+.group-transition-controls {
+  h4 {
+    margin-bottom: 15px;
+    font-size: 16px;
+    color: #eee;
+  }
+
+  .transition-settings {
+    .setting-group {
+      margin-bottom: 15px;
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        color: #ddd;
+      }
+
+      .input-with-help {
+        display: flex;
+        flex-direction: column;
+
+        input {
+          padding: 6px 10px;
+          background-color: #333;
+          border: 1px solid #555;
+          border-radius: 4px;
+          color: #eee;
+          font-size: 14px;
+
+          &:focus {
+            outline: none;
+            border-color: #0080ff;
+          }
+        }
+
+        .help-text {
+          margin-top: 3px;
+          font-size: 12px;
+          color: #888;
+        }
+      }
+    }
+  }
+
+  .timing-visualization {
+    margin-top: 20px;
+
+    .group-timeline {
+      height: 24px;
+      background-color: #333;
+      border-radius: 4px;
+      position: relative;
+      margin-bottom: 17px;
+
+      .transition-region {
+        height: 100%;
+        background-color: rgba(0, 128, 255, 0.5);
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 2px;
+
+        span {
+          color: white;
+          font-size: 12px;
+          white-space: nowrap;
+          text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+        }
+      }
+
+      .time-indicators {
+        display: flex;
+        justify-content: space-between;
+        padding: 0 5px;
+        margin-top: 5px;
+
+        span {
+          font-size: 12px;
+          color: #aaa;
+
+          &.start {
+            margin-right: auto;
+          }
+
+          &.end {
+            margin-left: auto;
+          }
+        }
       }
     }
   }

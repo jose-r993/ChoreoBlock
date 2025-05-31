@@ -1,6 +1,7 @@
 import { useState } from "react";
 import "../styles/CustomBeatGroups.scss";
 import ColorPicker from "./ColorPicker";
+import GroupCard from "./GroupCard";
 
 const CustomBeatGroups = ({
   customGroups,
@@ -14,9 +15,10 @@ const CustomBeatGroups = ({
   initialGroupStart,
   onInitialGroupStartChange,
   markerColors,
-  beatTimestamps = [],
+  beatTimestamps,
   onJumpToPosition,
   activeGroupIndex,
+  onUpdateGroup,
 }) => {
   const [groupNameInput, setGroupNameInput] = useState("");
 
@@ -35,13 +37,6 @@ const CustomBeatGroups = ({
 
     onAddGroup(newGroup);
     setGroupNameInput("");
-  };
-
-  const handleJumpToGroup = (startBeat, index) => {
-    if (beatTimestamps && beatTimestamps.length > startBeat) {
-      const timestamp = beatTimestamps[startBeat];
-      onJumpToPosition(timestamp, index);
-    }
   };
 
   return (
@@ -131,55 +126,24 @@ const CustomBeatGroups = ({
         <section className="control-section">
           <h3 className="section-title">Defined Groups</h3>
           <div className="groups-list">
-            {customGroups.map((group, idx) => (
-              <div
-                key={idx}
-                className={`group-item ${
-                  activeGroupIndex === idx ? "active" : ""
-                }`}
-                onClick={() => handleJumpToGroup(group.startBeat, idx)}
-              >
-                <div className="group-item-header">
-                  <span
-                    className="group-color"
-                    style={{ backgroundColor: group.color }}
-                  ></span>
-                  <span className="group-name">
-                    {group.groupName ||
-                      group.groupNameInput ||
-                      `Group ${idx + 1}`}
-                  </span>
-                  <div className="group-controls">
-                    {group.formation &&
-                      Object.keys(group.formation).length > 0 && (
-                        <span className="dancer-count">
-                          {Object.keys(group.formation).length}
-                          <span className="dancer-icon">👤</span>
-                        </span>
-                      )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRemoveGroup(idx);
-                      }}
-                      className="remove-button"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-                <div className="group-details">
-                  <div className="detail-item">
-                    <span className="detail-label">Start Beat:</span>
-                    <span className="detail-value">{group.startBeat + 1}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="detail-label">Length:</span>
-                    <span className="detail-value">{group.groupLength}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
+            {customGroups.map(
+              (group, idx) => (
+                console.log(group),
+                (
+                  <GroupCard
+                    key={idx}
+                    customGroups={customGroups}
+                    group={group}
+                    idx={idx}
+                    activeGroupIndex={activeGroupIndex}
+                    onUpdateGroup={onUpdateGroup}
+                    onRemoveGroup={onRemoveGroup}
+                    beatTimestamps={beatTimestamps}
+                    onJumpToPosition={onJumpToPosition}
+                  />
+                )
+              )
+            )}
           </div>
         </section>
       )}
