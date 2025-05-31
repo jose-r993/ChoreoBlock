@@ -25,11 +25,11 @@ const DancerManagement = ({
   const [newDancerColor, setNewDancerColor] = useState("#00AAFF");
 
   const handleAddDancer = () => {
-    if (!newDancerName.trim()) return;
+    // if (!newDancerName.trim()) return;
 
     const newDancer = {
       id: `dancer-${Date.now()}`,
-      name: newDancerName,
+      name: newDancerName || dancers.length + 1,
       shape: newDancerShape,
       color: newDancerColor,
       x: 200,

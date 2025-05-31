@@ -54,8 +54,9 @@ const WaveformControls = ({
             step="0.01"
             value={volume}
             onChange={handleVolumeChange}
+            style={{ "--value": `${volume * 100}%` }}
           />
-          <span className="volume-value">{Math.round(volume * 100)}%</span>
+          <div className="volume-value">{Math.round(volume * 100)}%</div>
         </div>
       </div>
     </div>

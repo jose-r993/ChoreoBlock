@@ -126,24 +126,19 @@ const CustomBeatGroups = ({
         <section className="control-section">
           <h3 className="section-title">Defined Groups</h3>
           <div className="groups-list">
-            {customGroups.map(
-              (group, idx) => (
-                console.log(group),
-                (
-                  <GroupCard
-                    key={idx}
-                    customGroups={customGroups}
-                    group={group}
-                    idx={idx}
-                    activeGroupIndex={activeGroupIndex}
-                    onUpdateGroup={onUpdateGroup}
-                    onRemoveGroup={onRemoveGroup}
-                    beatTimestamps={beatTimestamps}
-                    onJumpToPosition={onJumpToPosition}
-                  />
-                )
-              )
-            )}
+            {customGroups.map((group, idx) => (
+              <GroupCard
+                key={idx}
+                customGroups={customGroups}
+                group={group}
+                idx={idx}
+                activeGroupIndex={activeGroupIndex}
+                onUpdateGroup={onUpdateGroup}
+                onRemoveGroup={onRemoveGroup}
+                beatTimestamps={beatTimestamps}
+                onJumpToPosition={onJumpToPosition}
+              />
+            ))}
           </div>
         </section>
       )}
