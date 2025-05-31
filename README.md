@@ -10,7 +10,7 @@ ChoreoBlock is a specialized web application for dance choreographers to create,
 - Custom hooks for formation management
 - SCSS for styling
 
-![ChoreoBlock](https://github.com/user-attachments/assets/12894c09-577b-4e87-9181-94a10ee9cdac)
+<img width="1512" alt="Screenshot of ChoreoBlock Waveform Page" src="https://github.com/user-attachments/assets/a2f3fe6d-75c1-482a-85bd-a2750f44a21a" />
 
 Traditional Ballet Folklórico choreography planning involves drawing circles on notebooks to represent dancers, with arrows showing movement between positions. ChoreoBlock digitizes and enhances this process, allowing choreographers to:
 
