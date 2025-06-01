@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import CustomBeatGroups from "./CustomBeatGroups";
 import DancerManagement from "./DancerManagement";
-import TransitionControls from "./TransitionControls";
 import PathDrawing from "./PathDrawing";
 import "../styles/SideBar.scss";
 import stylusIcon from "../assets/stylusIcon.svg";
@@ -28,8 +27,6 @@ const SideBar = ({
   onAddDancer,
   onRemoveDancer,
   onEditDancer,
-  onUpdateFormation,
-  setDancerTransitionType,
   currentPathMode,
   onPathModeChange,
   onAddDancerPathForSidebar,

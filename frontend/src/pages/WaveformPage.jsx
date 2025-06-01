@@ -17,6 +17,7 @@ const WaveformPage = () => {
   const location = useLocation();
   const { audioFile, bpm, beatTimestamps = [] } = location.state || {};
   const wavesurferRef = useRef(null);
+  const nextDancerIndexRef = useRef(0);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -329,53 +330,42 @@ const WaveformPage = () => {
 
   const handleAddDancer = useCallback(
     (newDancerData) => {
-      const currentDancerCount = dancers.length;
-      const position = calculateInitialDancerPosition(currentDancerCount);
+      const position = calculateInitialDancerPosition(
+        nextDancerIndexRef.current
+      );
 
       const dancerWithId = {
         ...newDancerData,
         id: newDancerData.id || `dancer-${Date.now()}`,
         initialX: position.x,
         initialY: position.y,
+        orderIndex: nextDancerIndexRef.current,
       };
 
+      nextDancerIndexRef.current += 1;
       setDancers((prevDancers) => [...prevDancers, dancerWithId]);
-    },
-    [dancers.length, calculateInitialDancerPosition]
-  );
-
-  const handleRemoveDancer = useCallback(
-    (dancerIdToRemove) => {
-      setDancers((prevDancers) => {
-        const filteredDancers = prevDancers.filter(
-          (d) => d.id !== dancerIdToRemove
-        );
-
-        return filteredDancers.map((dancer, index) => {
-          const newPosition = calculateInitialDancerPosition(index);
-          return {
-            ...dancer,
-            initialX: newPosition.x,
-            initialY: newPosition.y,
-          };
-        });
-      });
-
-      setFormations((prevFormations) =>
-        prevFormations.map((fo) => {
-          const newFo = { ...fo };
-          delete newFo[dancerIdToRemove];
-          return newFo;
-        })
-      );
-      setSelectedDancerIds((prevSelected) => {
-        const newSelected = new Set(prevSelected);
-        newSelected.delete(dancerIdToRemove);
-        return newSelected;
-      });
     },
     [calculateInitialDancerPosition]
   );
+
+  const handleRemoveDancer = useCallback((dancerIdToRemove) => {
+    setDancers((prevDancers) =>
+      prevDancers.filter((d) => d.id !== dancerIdToRemove)
+    );
+
+    setFormations((prevFormations) =>
+      prevFormations.map((fo) => {
+        const newFo = { ...fo };
+        delete newFo[dancerIdToRemove];
+        return newFo;
+      })
+    );
+    setSelectedDancerIds((prevSelected) => {
+      const newSelected = new Set(prevSelected);
+      newSelected.delete(dancerIdToRemove);
+      return newSelected;
+    });
+  }, []);
 
   const handleSetDancerStaticHold = useCallback(
     (dancerId, x, y, groupIndex) => {
@@ -427,6 +417,7 @@ const WaveformPage = () => {
         <div className="sidebar">
           <SideBar
             volume={volume}
+            onVolumeChange={handleVolumeChange}
             groupSize={groupSize}
             onGroupSizeChange={handleGroupSizeChange}
             markerOffset={markerOffset}
@@ -486,8 +477,6 @@ const WaveformPage = () => {
       <div className="waveform-container">
         <Waveform
           audioFile={audioFile}
-          onVolumeChange={handleVolumeChange}
-          volume={volume}
           beatTimestamps={beatTimestamps}
           onPlayPause={togglePlayPause}
           isPlaying={isPlaying}
@@ -502,6 +491,7 @@ const WaveformPage = () => {
           onAddGroup={handleAddGroup}
           onSelectGroup={handleSelectFormation}
           currentTime={currentTime}
+          volume={volume}
           activeGroupIndex={activeGroupIndex}
         />
       </div>

@@ -5,6 +5,14 @@ import "../styles/Stage.scss";
 
 const DANCER_WIDTH = 24;
 const DANCER_HEIGHT = 24;
+const STAGE_WIDTH = 1600;
+const STAGE_HEIGHT = 800;
+const PADDING = 750;
+const CONTAINER_WIDTH = STAGE_WIDTH + 2 * PADDING;
+const CONTAINER_HEIGHT = STAGE_HEIGHT + 2 * PADDING;
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 1.8;
+const ZOOM_FACTOR = 1.02;
 
 const Stage = ({
   dancers = [],
@@ -44,52 +52,207 @@ const Stage = ({
     y: 0,
   });
 
-  const stageRef = useRef(null);
+  const [tx, setTx] = useState(0);
+  const [ty, setTy] = useState(0);
+  const [scale, setScale] = useState(0.5);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0, tx: 0, ty: 0 });
+  const [viewportDimensions, setViewportDimensions] = useState({
+    width: 800,
+    height: 600,
+  });
 
-  const getStageCoords = useCallback((e) => {
-    if (!stageRef.current) return null;
-    const stageBounds = stageRef.current.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: clientX - stageBounds.left, y: clientY - stageBounds.top };
+  const viewportRef = useRef(null);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const updateViewportDimensions = () => {
+      if (viewportRef.current) {
+        const rect = viewportRef.current.getBoundingClientRect();
+        setViewportDimensions({ width: rect.width, height: rect.height });
+      }
+    };
+
+    updateViewportDimensions();
+    window.addEventListener("resize", updateViewportDimensions);
+    return () => window.removeEventListener("resize", updateViewportDimensions);
   }, []);
 
-  const calculateNormalizedMarquee = useCallback(() => {
-    const x1 = Math.min(marqueeStartCoords.x, marqueeCurrentCoords.x);
-    const y1 = Math.min(marqueeStartCoords.y, marqueeCurrentCoords.y);
-    const x2 = Math.max(marqueeStartCoords.x, marqueeCurrentCoords.x);
-    const y2 = Math.max(marqueeStartCoords.y, marqueeCurrentCoords.y);
-    return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
-  }, [marqueeStartCoords, marqueeCurrentCoords]);
-
-  const checkDancerInMarquee = useCallback((dancerPos, normalizedMarquee) => {
-    if (!dancerPos || !normalizedMarquee) return false;
-    const dancerCenterX = dancerPos.x + DANCER_WIDTH / 2;
-    const dancerCenterY = dancerPos.y + DANCER_HEIGHT / 2;
-    const marqueeRight = normalizedMarquee.x + normalizedMarquee.width;
-    const marqueeBottom = normalizedMarquee.y + normalizedMarquee.height;
-    return (
-      dancerCenterX >= normalizedMarquee.x &&
-      dancerCenterX <= marqueeRight &&
-      dancerCenterY >= normalizedMarquee.y &&
-      dancerCenterY <= marqueeBottom
-    );
+  useEffect(() => {
+    const preventDefault = (e) => e.preventDefault();
+    const viewport = viewportRef.current;
+    if (viewport) {
+      viewport.addEventListener("wheel", preventDefault, { passive: false });
+      viewport.addEventListener("contextmenu", preventDefault);
+      return () => {
+        viewport.removeEventListener("wheel", preventDefault);
+        viewport.removeEventListener("contextmenu", preventDefault);
+      };
+    }
   }, []);
 
-  const handleStageMouseDown = useCallback(
+  const clampTranslation = useCallback(
+    (newTx, newTy, currentScale) => {
+      const minTx = viewportDimensions.width - CONTAINER_WIDTH * currentScale;
+      const maxTx = 0;
+      const minTy = viewportDimensions.height - CONTAINER_HEIGHT * currentScale;
+      const maxTy = 0;
+
+      return {
+        tx: Math.max(minTx, Math.min(maxTx, newTx)),
+        ty: Math.max(minTy, Math.min(maxTy, newTy)),
+      };
+    },
+    [viewportDimensions]
+  );
+
+  const getStageCoords = useCallback(
+    (e) => {
+      if (!containerRef.current) return null;
+      const containerBounds = containerRef.current.getBoundingClientRect();
+      const viewportBounds = viewportRef.current.getBoundingClientRect();
+
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      const containerX = (clientX - containerBounds.left) / scale;
+      const containerY = (clientY - containerBounds.top) / scale;
+
+      const stageX = containerX - PADDING;
+      const stageY = containerY - PADDING;
+
+      return { x: stageX, y: stageY };
+    },
+    [scale]
+  );
+
+  const handleWheel = useCallback(
+    (e) => {
+      e.preventDefault();
+
+      const delta = e.deltaY;
+      const zoomIn = delta < 0;
+      const newScale = zoomIn
+        ? Math.min(MAX_SCALE, scale * ZOOM_FACTOR)
+        : Math.max(MIN_SCALE, scale / ZOOM_FACTOR);
+
+      if (newScale !== scale) {
+        const rect = viewportRef.current.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const worldX = (mouseX - tx) / scale;
+        const worldY = (mouseY - ty) / scale;
+
+        const newTx = mouseX - worldX * newScale;
+        const newTy = mouseY - worldY * newScale;
+
+        const clamped = clampTranslation(newTx, newTy, newScale);
+
+        setScale(newScale);
+        setTx(clamped.tx);
+        setTy(clamped.ty);
+      }
+    },
+    [scale, tx, ty, clampTranslation]
+  );
+
+  const handlePointerDown = useCallback(
     (e) => {
       const coords = getStageCoords(e);
       if (!coords) return;
 
-      if (e.target === stageRef.current && stageMode === "select") {
+      if (e.button === 2 || e.button === 1 || (e.button === 0 && e.shiftKey)) {
         e.preventDefault();
-        setIsMarqueeSelecting(true);
-        setMarqueeStartCoords(coords);
-        setMarqueeCurrentCoords(coords);
-        if (onDancersSelected) onDancersSelected(new Set());
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setIsPanning(true);
+        setPanStart({ x: e.clientX, y: e.clientY, tx, ty });
+        return;
+      }
+
+      if (
+        e.target === containerRef.current ||
+        e.target.classList.contains("stage-background")
+      ) {
+        if (stageMode === "select") {
+          e.preventDefault();
+          setIsMarqueeSelecting(true);
+          setMarqueeStartCoords(coords);
+          setMarqueeCurrentCoords(coords);
+          if (onDancersSelected) onDancersSelected(new Set());
+        }
       }
     },
-    [getStageCoords, onDancersSelected, stageMode]
+    [tx, ty, getStageCoords, stageMode, onDancersSelected]
+  );
+
+  const handlePointerUp = useCallback(
+    (e) => {
+      if (isPanning) {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+        setIsPanning(false);
+        setPanStart({ x: 0, y: 0, tx: 0, ty: 0 });
+        return;
+      }
+
+      if (
+        isCurrentlyDrawingPath &&
+        pathInitiatorDancer &&
+        currentDrawingPath.length > 0 &&
+        stageMode === "draw"
+      ) {
+        const processedPath = derivePathFromGesture(currentDrawingPath, {
+          shiftKey: drawingModifiers.shiftKey,
+          altKey: drawingModifiers.altKey,
+          pathModeHint: pathMode,
+          straightThreshold: 3 * (window.devicePixelRatio || 1),
+          axisLockThreshold: 10,
+          simplifyEpsilon: 3,
+          smoothingIterations: 2,
+        });
+
+        if (onSavePath) {
+          onSavePath(
+            pathInitiatorDancer.id,
+            processedPath.points,
+            processedPath.kind,
+            processedPath.subKind
+          );
+        }
+
+        setIsCurrentlyDrawingPath(false);
+        setCurrentDrawingPath([]);
+        setPathInitiatorDancer(null);
+        setDrawingModifiers({ shiftKey: false, altKey: false, ctrlKey: false });
+      }
+
+      if (isDraggingDancer) {
+        setIsDraggingDancer(false);
+        setDraggingDancer(null);
+        setDragOffset({ x: 0, y: 0 });
+      }
+
+      if (isMarqueeSelecting) {
+        setIsMarqueeSelecting(false);
+        setMarqueeStartCoords({ x: 0, y: 0 });
+        setMarqueeCurrentCoords({ x: 0, y: 0 });
+      }
+    },
+    [
+      isPanning,
+      isCurrentlyDrawingPath,
+      isDraggingDancer,
+      isMarqueeSelecting,
+      pathInitiatorDancer,
+      currentDrawingPath,
+      stageMode,
+      pathMode,
+      drawingModifiers,
+      onSavePath,
+      derivePathFromGesture,
+    ]
   );
 
   const handleDancerMouseDown = useCallback(
@@ -158,143 +321,73 @@ const Stage = ({
     ]
   );
 
-  const handleDocumentMouseMove = useCallback(
-    (e) => {
-      const coords = getStageCoords(e);
-      if (!coords) return;
+  const calculateNormalizedMarquee = useCallback(() => {
+    const x1 = Math.min(marqueeStartCoords.x, marqueeCurrentCoords.x);
+    const y1 = Math.min(marqueeStartCoords.y, marqueeCurrentCoords.y);
+    const x2 = Math.max(marqueeStartCoords.x, marqueeCurrentCoords.x);
+    const y2 = Math.max(marqueeStartCoords.y, marqueeCurrentCoords.y);
+    return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+  }, [marqueeStartCoords, marqueeCurrentCoords]);
 
-      if (isCurrentlyDrawingPath && stageMode === "draw") {
-        e.preventDefault();
+  const checkDancerInMarquee = useCallback((dancerPos, normalizedMarquee) => {
+    if (!dancerPos || !normalizedMarquee) return false;
+    const dancerCenterX = dancerPos.x + DANCER_WIDTH / 2;
+    const dancerCenterY = dancerPos.y + DANCER_HEIGHT / 2;
+    const marqueeRight = normalizedMarquee.x + normalizedMarquee.width;
+    const marqueeBottom = normalizedMarquee.y + normalizedMarquee.height;
+    return (
+      dancerCenterX >= normalizedMarquee.x &&
+      dancerCenterX <= marqueeRight &&
+      dancerCenterY >= normalizedMarquee.y &&
+      dancerCenterY <= marqueeBottom
+    );
+  }, []);
 
-        setDrawingModifiers((prev) => ({
-          ...prev,
-          shiftKey: e.shiftKey,
-          altKey: e.altKey,
-          ctrlKey: e.ctrlKey || e.metaKey,
-        }));
+  const handleZoomIn = useCallback(() => {
+    const newScale = Math.min(MAX_SCALE, scale * ZOOM_FACTOR);
+    if (newScale !== scale) {
+      const centerX = viewportDimensions.width / 2;
+      const centerY = viewportDimensions.height / 2;
 
-        if (currentDrawingPath.length > 0) {
-          const last = currentDrawingPath[currentDrawingPath.length - 1];
-          if (Math.hypot(coords.x - last.x, coords.y - last.y) > 5) {
-            setCurrentDrawingPath((prev) => [...prev, coords]);
-          }
-        }
-      } else if (isDraggingDancer && draggingDancer && stageMode === "select") {
-        e.preventDefault();
-        const newX = coords.x - dragOffset.x;
-        const newY = coords.y - dragOffset.y;
+      const worldX = (centerX - tx) / scale;
+      const worldY = (centerY - ty) / scale;
 
-        if (onUpdateDancerPosition) {
-          onUpdateDancerPosition(draggingDancer.id, newX, newY);
-        }
-      } else if (isMarqueeSelecting && stageMode === "select") {
-        e.preventDefault();
-        setMarqueeCurrentCoords(coords);
+      const newTx = centerX - worldX * newScale;
+      const newTy = centerY - worldY * newScale;
 
-        const normalizedMarquee = calculateNormalizedMarquee();
-        const newSelection = new Set();
+      const clamped = clampTranslation(newTx, newTy, newScale);
 
-        dancers.forEach((dancer) => {
-          const position = getDancerPosition(dancer.id);
-          if (checkDancerInMarquee(position, normalizedMarquee)) {
-            newSelection.add(dancer.id);
-          }
-        });
+      setScale(newScale);
+      setTx(clamped.tx);
+      setTy(clamped.ty);
+    }
+  }, [scale, tx, ty, viewportDimensions, clampTranslation]);
 
-        if (onDancersSelected) onDancersSelected(newSelection);
-      }
-    },
-    [
-      isCurrentlyDrawingPath,
-      isDraggingDancer,
-      isMarqueeSelecting,
-      currentDrawingPath,
-      getStageCoords,
-      calculateNormalizedMarquee,
-      dancers,
-      getDancerPosition,
-      checkDancerInMarquee,
-      onDancersSelected,
-      stageMode,
-      draggingDancer,
-      dragOffset,
-      onUpdateDancerPosition,
-    ]
-  );
+  const handleZoomOut = useCallback(() => {
+    const newScale = Math.max(MIN_SCALE, scale / ZOOM_FACTOR);
+    if (newScale !== scale) {
+      const centerX = viewportDimensions.width / 2;
+      const centerY = viewportDimensions.height / 2;
 
-  const handleDocumentMouseUp = useCallback(
-    (e) => {
-      if (
-        isCurrentlyDrawingPath &&
-        pathInitiatorDancer &&
-        currentDrawingPath.length > 0 &&
-        stageMode === "draw"
-      ) {
-        const processedPath = derivePathFromGesture(currentDrawingPath, {
-          shiftKey: drawingModifiers.shiftKey,
-          altKey: drawingModifiers.altKey,
-          pathModeHint: pathMode,
-          straightThreshold: 3 * (window.devicePixelRatio || 1),
-          axisLockThreshold: 10,
-          simplifyEpsilon: 6,
-          smoothingIterations: 2,
-        });
+      const worldX = (centerX - tx) / scale;
+      const worldY = (centerY - ty) / scale;
 
-        if (onSavePath) {
-          onSavePath(
-            pathInitiatorDancer.id,
-            processedPath.points,
-            processedPath.kind,
-            processedPath.subKind
-          );
-        }
+      const newTx = centerX - worldX * newScale;
+      const newTy = centerY - worldY * newScale;
 
-        setIsCurrentlyDrawingPath(false);
-        setCurrentDrawingPath([]);
-        setPathInitiatorDancer(null);
-        setDrawingModifiers({ shiftKey: false, altKey: false, ctrlKey: false });
-        return;
-      }
+      const clamped = clampTranslation(newTx, newTy, newScale);
 
-      if (isDraggingDancer) {
-        setIsDraggingDancer(false);
-        setDraggingDancer(null);
-        setDragOffset({ x: 0, y: 0 });
-      }
+      setScale(newScale);
+      setTx(clamped.tx);
+      setTy(clamped.ty);
+    }
+  }, [scale, tx, ty, viewportDimensions, clampTranslation]);
 
-      if (isMarqueeSelecting) {
-        setIsMarqueeSelecting(false);
-        setMarqueeStartCoords({ x: 0, y: 0 });
-        setMarqueeCurrentCoords({ x: 0, y: 0 });
-      }
-    },
-    [
-      isCurrentlyDrawingPath,
-      isDraggingDancer,
-      isMarqueeSelecting,
-      pathInitiatorDancer,
-      currentDrawingPath,
-      onSavePath,
-      pathMode,
-      drawingModifiers,
-      stageMode,
-    ]
-  );
-
-  useEffect(() => {
-    document.addEventListener("mousemove", handleDocumentMouseMove);
-    document.addEventListener("mouseup", handleDocumentMouseUp);
-    document.addEventListener("touchmove", handleDocumentMouseMove, {
-      passive: false,
-    });
-    document.addEventListener("touchend", handleDocumentMouseUp);
-    return () => {
-      document.removeEventListener("mousemove", handleDocumentMouseMove);
-      document.removeEventListener("mouseup", handleDocumentMouseUp);
-      document.removeEventListener("touchmove", handleDocumentMouseMove);
-      document.removeEventListener("touchend", handleDocumentMouseUp);
-    };
-  }, [handleDocumentMouseMove, handleDocumentMouseUp]);
+  const handleResetView = useCallback(() => {
+    setScale(0.5);
+    setTx(0);
+    setTy(0);
+  }, []);
 
   const renderDancerShape = (dancer) => {
     const color = dancer.color || "#cccccc";
@@ -317,7 +410,7 @@ const Stage = ({
       pathModeHint: pathMode,
       straightThreshold: 3 * (window.devicePixelRatio || 1),
       axisLockThreshold: 10,
-      simplifyEpsilon: 6,
+      simplifyEpsilon: 3,
       smoothingIterations: 2,
     });
 
@@ -340,10 +433,10 @@ const Stage = ({
         className="path-preview"
         style={{
           position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
+          top: PADDING,
+          left: PADDING,
+          width: STAGE_WIDTH,
+          height: STAGE_HEIGHT,
           pointerEvents: "none",
           zIndex: 1000,
         }}
@@ -367,18 +460,6 @@ const Stage = ({
           fill="none"
           strokeDasharray={previewPath.kind === "straight" ? "none" : "4,4"}
         />
-
-        {previewPath.kind === "straight" && previewPath.subKind && (
-          <text
-            x={previewPath.points[0].x + 10}
-            y={previewPath.points[0].y - 10}
-            fill="#fff"
-            fontSize="12"
-            opacity="0.8"
-          >
-            {previewPath.subKind === "vertical" ? "↕" : "↔"}
-          </text>
-        )}
       </svg>
     );
   };
@@ -391,8 +472,9 @@ const Stage = ({
       <div
         className="marquee-selection-box"
         style={{
-          left: normMarquee.x,
-          top: normMarquee.y,
+          position: "absolute",
+          left: normMarquee.x + PADDING,
+          top: normMarquee.y + PADDING,
           width: normMarquee.width,
           height: normMarquee.height,
         }}
@@ -604,120 +686,285 @@ const Stage = ({
     }${index === activeGroupIndex ? " (Selected)" : ""}`;
   };
 
+  const handlePointerMove = useCallback(
+    (e) => {
+      if (isPanning) {
+        e.preventDefault();
+        const dx = e.clientX - panStart.x;
+        const dy = e.clientY - panStart.y;
+        const newTx = panStart.tx + dx;
+        const newTy = panStart.ty + dy;
+        const clamped = clampTranslation(newTx, newTy, scale);
+        setTx(clamped.tx);
+        setTy(clamped.ty);
+        return;
+      }
+
+      const coords = getStageCoords(e);
+      if (!coords) return;
+
+      if (isCurrentlyDrawingPath && stageMode === "draw") {
+        e.preventDefault();
+        setDrawingModifiers((prev) => ({
+          ...prev,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey,
+          ctrlKey: e.ctrlKey || e.metaKey,
+        }));
+
+        const clampedPathPointX = Math.max(0, Math.min(coords.x, STAGE_WIDTH));
+        const clampedPathPointY = Math.max(0, Math.min(coords.y, STAGE_HEIGHT));
+        const clampedPathCoords = {
+          x: clampedPathPointX,
+          y: clampedPathPointY,
+        };
+
+        if (currentDrawingPath.length > 0) {
+          const last = currentDrawingPath[currentDrawingPath.length - 1];
+          if (
+            Math.hypot(
+              clampedPathCoords.x - last.x,
+              clampedPathCoords.y - last.y
+            ) > 5
+          ) {
+            setCurrentDrawingPath((prev) => [...prev, clampedPathCoords]);
+          }
+        } else {
+          setCurrentDrawingPath([clampedPathCoords]);
+        }
+      } else if (isDraggingDancer && draggingDancer && stageMode === "select") {
+        e.preventDefault();
+        const rawNewX = coords.x - dragOffset.x;
+        const rawNewY = coords.y - dragOffset.y;
+
+        const clampedX = Math.max(
+          0,
+          Math.min(rawNewX, STAGE_WIDTH - DANCER_WIDTH)
+        );
+        const clampedY = Math.max(
+          0,
+          Math.min(rawNewY, STAGE_HEIGHT - DANCER_HEIGHT)
+        );
+
+        if (onUpdateDancerPosition) {
+          onUpdateDancerPosition(draggingDancer.id, clampedX, clampedY);
+        }
+      } else if (isMarqueeSelecting && stageMode === "select") {
+        e.preventDefault();
+        setMarqueeCurrentCoords(coords);
+        const normalizedMarquee = calculateNormalizedMarquee();
+        const newSelection = new Set();
+        dancers.forEach((dancer) => {
+          const position = getDancerPosition(dancer.id);
+          if (checkDancerInMarquee(position, normalizedMarquee)) {
+            newSelection.add(dancer.id);
+          }
+        });
+        if (onDancersSelected) onDancersSelected(newSelection);
+      }
+    },
+    [
+      isPanning,
+      isCurrentlyDrawingPath,
+      isDraggingDancer,
+      isMarqueeSelecting,
+      panStart,
+      scale,
+      stageMode,
+      currentDrawingPath,
+      draggingDancer,
+      dragOffset,
+      dancers,
+      clampTranslation,
+      getStageCoords,
+      getDancerPosition,
+      onDancersSelected,
+      onUpdateDancerPosition,
+      calculateNormalizedMarquee,
+      checkDancerInMarquee,
+    ]
+  );
+
   return (
     <div className="stage-container">
       <div className="stage-header">
         <h2>Choreography Stage</h2>
         <div className="stage-info">{getFormationDisplayName()}</div>
-        <div className="stage-mode-controls">
-          <button
-            className={`mode-btn ${stageMode === "select" ? "active" : ""}`}
-            onClick={() => setStageMode("select")}
-            title="Select Mode"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M0 2l7 0l3 3l0 4l-2 0l0-3l-2-2l0 9l2 0l0 2l-6 0l0-2l2 0l0-9l-4 0z" />
-            </svg>
-          </button>
-          <button
-            className={`mode-btn ${stageMode === "draw" ? "active" : ""}`}
-            onClick={() => setStageMode("draw")}
-            title="Draw Mode"
-            disabled={!isStageInPathDrawingMode}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
-            </svg>
-          </button>
+        <div className="stage-controls">
+          <div className="zoom-controls">
+            <button
+              className="zoom-btn"
+              onClick={handleZoomOut}
+              title="Zoom Out"
+            >
+              −
+            </button>
+            <span className="zoom-level">{Math.round(scale * 100)}%</span>
+            <button className="zoom-btn" onClick={handleZoomIn} title="Zoom In">
+              +
+            </button>
+            <button
+              className="zoom-btn reset"
+              onClick={handleResetView}
+              title="Reset View"
+            >
+              ⟲
+            </button>
+          </div>
+          <div className="stage-mode-controls">
+            <button
+              className={`mode-btn ${stageMode === "select" ? "active" : ""}`}
+              onClick={() => setStageMode("select")}
+              title="Select Mode"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <path d="M0 2l7 0l3 3l0 4l-2 0l0-3l-2-2l0 9l2 0l0 2l-6 0l0-2l2 0l0-9l-4 0z" />
+              </svg>
+            </button>
+            <button
+              className={`mode-btn ${stageMode === "draw" ? "active" : ""}`}
+              onClick={() => setStageMode("draw")}
+              title="Draw Mode"
+              disabled={!isStageInPathDrawingMode}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
+                <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
       <div
-        ref={stageRef}
-        className={`stage-area ${
-          stageMode === "draw" && isStageInPathDrawingMode ? "drawing-mode" : ""
-        }`}
-        onMouseDown={handleStageMouseDown}
-        onTouchStart={handleStageMouseDown}
+        ref={viewportRef}
+        className="stage-viewport"
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        style={{
+          cursor: isPanning
+            ? "grabbing"
+            : stageMode === "draw" && isStageInPathDrawingMode
+            ? "crosshair"
+            : "grab",
+        }}
       >
-        <div className="stage-grid" />
-
-        <svg
-          className="paths-display-svg"
+        <div
+          ref={containerRef}
+          className="stage-container-inner"
           style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            zIndex: 1,
+            width: CONTAINER_WIDTH,
+            height: CONTAINER_HEIGHT,
+            transform: `translate(${tx}px, ${ty}px) scale(${scale})`,
+            transformOrigin: "0 0",
           }}
         >
-          {renderSetPathsDisplay()}
-        </svg>
-
-        {renderPathPreview()}
-        {renderMarqueeRectangle()}
-
-        {dancers.map((dancer) => {
-          const position = getDancerPosition(dancer.id);
-          if (
-            typeof position?.x !== "number" ||
-            typeof position?.y !== "number"
-          ) {
-            return null;
-          }
-          const isSelected =
-            selectedDancerIds && selectedDancerIds.has(dancer.id);
-          return (
-            <motion.div
-              key={dancer.id}
-              className={`dancer ${
-                pathInitiatorDancer?.id === dancer.id ? "path-active" : ""
-              } ${isSelected ? "selected" : ""}`}
-              style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                cursor:
-                  stageMode === "draw" &&
-                  isStageInPathDrawingMode &&
-                  activeGroupIndex !== null
-                    ? "crosshair"
-                    : stageMode === "select"
-                    ? "grab"
-                    : "default",
-                touchAction: "none",
-                zIndex:
-                  pathInitiatorDancer?.id === dancer.id
-                    ? 10
-                    : isSelected
-                    ? 6
-                    : 5,
-              }}
-              initial={false}
-              animate={{ x: position.x, y: position.y }}
-              transition={{ type: "tween", duration: 0.05, ease: "linear" }}
-              onMouseDown={(e) => handleDancerMouseDown(e, dancer)}
-              onTouchStart={(e) => handleDancerMouseDown(e, dancer)}
-              onDragStart={(e) => e.preventDefault()}
-            >
-              <svg
-                width={DANCER_WIDTH}
-                height={DANCER_HEIGHT}
-                viewBox="0 0 20 20"
-              >
-                {renderDancerShape(dancer)}
-              </svg>
-              <div className="dancer-name">{dancer.name}</div>
-            </motion.div>
-          );
-        })}
-        {dancers.length === 0 && (
-          <div className="stage-placeholder">
-            <p>No dancers added</p>
+          <div
+            className="stage-background"
+            style={{
+              position: "absolute",
+              top: PADDING,
+              left: PADDING,
+              width: STAGE_WIDTH,
+              height: STAGE_HEIGHT,
+            }}
+          >
+            <div className="stage-grid" />
           </div>
-        )}
+
+          <svg
+            className="paths-display-svg"
+            style={{
+              position: "absolute",
+              top: PADDING,
+              left: PADDING,
+              width: STAGE_WIDTH,
+              height: STAGE_HEIGHT,
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          >
+            {renderSetPathsDisplay()}
+          </svg>
+
+          {renderPathPreview()}
+          {renderMarqueeRectangle()}
+
+          {dancers.map((dancer) => {
+            const position = getDancerPosition(dancer.id);
+            if (
+              typeof position?.x !== "number" ||
+              typeof position?.y !== "number"
+            ) {
+              return null;
+            }
+            const isSelected =
+              selectedDancerIds && selectedDancerIds.has(dancer.id);
+            return (
+              <motion.div
+                key={dancer.id}
+                className={`dancer ${
+                  pathInitiatorDancer?.id === dancer.id ? "path-active" : ""
+                } ${isSelected ? "selected" : ""}`}
+                style={{
+                  position: "absolute",
+                  left: PADDING,
+                  top: PADDING,
+                  cursor:
+                    stageMode === "draw" &&
+                    isStageInPathDrawingMode &&
+                    activeGroupIndex !== null
+                      ? "crosshair"
+                      : stageMode === "select"
+                      ? "pointer"
+                      : "default",
+                  touchAction: "none",
+                  zIndex:
+                    pathInitiatorDancer?.id === dancer.id
+                      ? 10
+                      : isSelected
+                      ? 6
+                      : 5,
+                }}
+                initial={false}
+                animate={{ x: position.x, y: position.y }}
+                transition={{ type: "tween", duration: 0.05, ease: "linear" }}
+                onPointerDown={(e) => handleDancerMouseDown(e, dancer)}
+              >
+                <svg
+                  width={DANCER_WIDTH}
+                  height={DANCER_HEIGHT}
+                  viewBox="0 0 20 20"
+                >
+                  {renderDancerShape(dancer)}
+                </svg>
+                <div className="dancer-name">{dancer.name}</div>
+              </motion.div>
+            );
+          })}
+          {dancers.length === 0 && (
+            <div
+              className="stage-placeholder"
+              style={{
+                left: PADDING + STAGE_WIDTH / 2,
+                top: PADDING + STAGE_HEIGHT / 2,
+              }}
+            >
+              <p>No dancers added</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import ZoomPlugin from "wavesurfer.js/dist/plugins/zoom.js";
 import WaveformControls from "./WaveformControls";
 import "../styles/Waveform.scss";
 
+// Waveform component for displaying audio waveform with beat markers, custom groups, and Formation regions with embedded transition
 const Waveform = ({
   onVolumeChange,
   audioFile,

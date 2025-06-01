@@ -3,6 +3,7 @@ import "../styles/WaveformControls.scss";
 import playIcon from "../assets/playIcon.svg";
 import pauseIcon from "../assets/pauseIcon.svg";
 
+// Waveform Controls is the component that manages playback controls, volume, and displays song information (BPM and song name).
 const WaveformControls = ({
   isPlaying,
   onPlayPause,
