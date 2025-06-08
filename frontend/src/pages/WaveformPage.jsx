@@ -7,8 +7,8 @@ import useFormationController from "../components/FormationController";
 import "../styles/WaveformPage.scss";
 
 const MARKER_COLORS = ["#FF5500", "#00AAFF", "#22CCAA", "#FFAA00", "#FF00AA"];
-const STAGE_WIDTH = 2000;
-const STAGE_HEIGHT = 800;
+const STAGE_WIDTH = 1600;
+const STAGE_HEIGHT = 780;
 const DANCER_SIZE = 24;
 const SIDE_MARGIN = 60;
 const VERTICAL_MARGIN = 40;
@@ -402,6 +402,26 @@ const WaveformPage = () => {
     setSelectedDancerIds(new Set());
   };
 
+  const createJSON = () => {
+    // const fs = require("fs");
+    const jsonDATA = {
+      audioFile: audioFile,
+      dancers: dancers,
+      formations: formations,
+      customGroups: customGroups,
+      beatTimestamps: beatTimeStamps,
+    };
+
+    const projectFile = jsonDATA.strin(ify(jsonDATA, null, 2));
+    const filePath = "./project1.json";
+    fs.writeFile(filePath, projectFile, (err) => {
+      if (err) {
+        console.error("Error writing file:", err);
+      }
+      console.log("File written successfully:", filePath);
+    });
+  };
+
   if (!audioFile || !beatTimestamps || beatTimestamps.length === 0) {
     return (
       <div className="waveform-page empty-state">
@@ -450,6 +470,7 @@ const WaveformPage = () => {
             onAddDancerPathForSidebar={formationController.addDancerPath}
             selectedDancerIds={selectedDancerIds}
             onDancersSelected={handleDancersSelected}
+            createJSON={createJSON}
           />
         </div>
         <Stage

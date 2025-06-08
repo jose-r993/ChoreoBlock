@@ -32,6 +32,7 @@ const SideBar = ({
   onAddDancerPathForSidebar,
   selectedDancerIds,
   onDancersSelected,
+  createJSON,
 }) => {
   const [activeTab, setActiveTab] = useState("beatGroups");
 
@@ -119,6 +120,7 @@ const SideBar = ({
             <img className="tab-icon" src={tab.icon} alt={tab.label} />
           </button>
         ))}
+        <button onClick={createJSON}>Save</button>
       </div>
       <div className="tab-content">
         {tabs.find((tab) => tab.id === activeTab)?.component}

@@ -7,8 +7,8 @@ const DANCER_WIDTH = 24;
 const DANCER_HEIGHT = 24;
 const STAGE_WIDTH = 1600;
 const STAGE_HEIGHT = 800;
-const PADDING = 750;
-const CONTAINER_WIDTH = STAGE_WIDTH + 2 * PADDING;
+const PADDING = 600;
+const CONTAINER_WIDTH = STAGE_WIDTH + PADDING;
 const CONTAINER_HEIGHT = STAGE_HEIGHT + 2 * PADDING;
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 1.8;
@@ -30,6 +30,7 @@ const Stage = ({
   getActualEndForFormation,
   formations,
   onUpdateDancerPosition,
+  onUpdateFormation,
 }) => {
   const [stageMode, setStageMode] = useState("select");
   const [isCurrentlyDrawingPath, setIsCurrentlyDrawingPath] = useState(false);
@@ -44,6 +45,8 @@ const Stage = ({
   const [isDraggingDancer, setIsDraggingDancer] = useState(false);
   const [draggingDancer, setDraggingDancer] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [dragStartPosition, setDragStartPosition] = useState({ x: 0, y: 0 });
+  const [originalPath, setOriginalPath] = useState(null);
 
   const [isMarqueeSelecting, setIsMarqueeSelecting] = useState(false);
   const [marqueeStartCoords, setMarqueeStartCoords] = useState({ x: 0, y: 0 });
@@ -54,7 +57,7 @@ const Stage = ({
 
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
-  const [scale, setScale] = useState(0.5);
+  const [scale, setScale] = useState(0.65);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0, tx: 0, ty: 0 });
   const [viewportDimensions, setViewportDimensions] = useState({
@@ -64,6 +67,7 @@ const Stage = ({
 
   const viewportRef = useRef(null);
   const containerRef = useRef(null);
+  const dancerPositionsRef = useRef({});
 
   useEffect(() => {
     const updateViewportDimensions = () => {
@@ -90,6 +94,14 @@ const Stage = ({
       };
     }
   }, []);
+
+  useEffect(() => {
+    const newPositions = {};
+    dancers.forEach((dancer) => {
+      newPositions[dancer.id] = getDancerPosition(dancer.id);
+    });
+    dancerPositionsRef.current = newPositions;
+  }, [dancers, getDancerPosition, currentTimelineState]);
 
   const clampTranslation = useCallback(
     (newTx, newTy, currentScale) => {
@@ -232,6 +244,8 @@ const Stage = ({
         setIsDraggingDancer(false);
         setDraggingDancer(null);
         setDragOffset({ x: 0, y: 0 });
+        setDragStartPosition({ x: 0, y: 0 });
+        setOriginalPath(null);
       }
 
       if (isMarqueeSelecting) {
@@ -251,7 +265,6 @@ const Stage = ({
       pathMode,
       drawingModifiers,
       onSavePath,
-      derivePathFromGesture,
     ]
   );
 
@@ -262,7 +275,8 @@ const Stage = ({
       if (!coords) return;
       e.preventDefault();
 
-      const startPos = getDancerPosition(dancer.id);
+      const currentVisualPosition =
+        dancerPositionsRef.current[dancer.id] || getDancerPosition(dancer.id);
 
       if (
         stageMode === "draw" &&
@@ -276,7 +290,9 @@ const Stage = ({
         });
 
         setPathInitiatorDancer(dancer);
-        setCurrentDrawingPath(startPos ? [startPos] : [coords]);
+        setCurrentDrawingPath(
+          currentVisualPosition ? [currentVisualPosition] : [coords]
+        );
         setIsCurrentlyDrawingPath(true);
 
         if (!selectedDancerIds || !selectedDancerIds.has(dancer.id)) {
@@ -303,11 +319,24 @@ const Stage = ({
 
         setIsDraggingDancer(true);
         setDraggingDancer(dancer);
-        const dancerPos = getDancerPosition(dancer.id);
+        setDragStartPosition(currentVisualPosition);
         setDragOffset({
-          x: coords.x - dancerPos.x,
-          y: coords.y - dancerPos.y,
+          x: coords.x - currentVisualPosition.x,
+          y: coords.y - currentVisualPosition.y,
         });
+
+        if (
+          activeGroupIndex !== null &&
+          formations &&
+          formations[activeGroupIndex]
+        ) {
+          const formationData = formations[activeGroupIndex][dancer.id];
+          if (formationData && formationData.rawStagePath) {
+            setOriginalPath(formationData.rawStagePath);
+          } else {
+            setOriginalPath(null);
+          }
+        }
       }
     },
     [
@@ -318,6 +347,7 @@ const Stage = ({
       selectedDancerIds,
       onDancersSelected,
       stageMode,
+      formations,
     ]
   );
 
@@ -746,8 +776,29 @@ const Stage = ({
           Math.min(rawNewY, STAGE_HEIGHT - DANCER_HEIGHT)
         );
 
+        const deltaX = clampedX - dragStartPosition.x;
+        const deltaY = clampedY - dragStartPosition.y;
+
         if (onUpdateDancerPosition) {
           onUpdateDancerPosition(draggingDancer.id, clampedX, clampedY);
+        }
+
+        if (activeGroupIndex !== null && originalPath && onUpdateFormation) {
+          const translatedPath = originalPath.map((point) => ({
+            x: point.x + deltaX,
+            y: point.y + deltaY,
+          }));
+
+          const formationData = formations[activeGroupIndex];
+          const updatedFormationData = {
+            ...formationData,
+            [draggingDancer.id]: {
+              ...formationData[draggingDancer.id],
+              rawStagePath: translatedPath,
+            },
+          };
+
+          onUpdateFormation(activeGroupIndex, updatedFormationData);
         }
       } else if (isMarqueeSelecting && stageMode === "select") {
         e.preventDefault();
@@ -774,12 +825,17 @@ const Stage = ({
       currentDrawingPath,
       draggingDancer,
       dragOffset,
+      dragStartPosition,
+      originalPath,
       dancers,
       clampTranslation,
       getStageCoords,
       getDancerPosition,
       onDancersSelected,
       onUpdateDancerPosition,
+      onUpdateFormation,
+      activeGroupIndex,
+      formations,
       calculateNormalizedMarquee,
       checkDancerInMarquee,
     ]
@@ -787,61 +843,43 @@ const Stage = ({
 
   return (
     <div className="stage-container">
-      <div className="stage-header">
-        <h2>Choreography Stage</h2>
-        <div className="stage-info">{getFormationDisplayName()}</div>
-        <div className="stage-controls">
-          <div className="zoom-controls">
-            <button
-              className="zoom-btn"
-              onClick={handleZoomOut}
-              title="Zoom Out"
-            >
-              −
-            </button>
-            <span className="zoom-level">{Math.round(scale * 100)}%</span>
-            <button className="zoom-btn" onClick={handleZoomIn} title="Zoom In">
-              +
-            </button>
-            <button
-              className="zoom-btn reset"
-              onClick={handleResetView}
-              title="Reset View"
-            >
-              ⟲
-            </button>
-          </div>
-          <div className="stage-mode-controls">
-            <button
-              className={`mode-btn ${stageMode === "select" ? "active" : ""}`}
-              onClick={() => setStageMode("select")}
-              title="Select Mode"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="currentColor"
-              >
-                <path d="M0 2l7 0l3 3l0 4l-2 0l0-3l-2-2l0 9l2 0l0 2l-6 0l0-2l2 0l0-9l-4 0z" />
-              </svg>
-            </button>
-            <button
-              className={`mode-btn ${stageMode === "draw" ? "active" : ""}`}
-              onClick={() => setStageMode("draw")}
-              title="Draw Mode"
-              disabled={!isStageInPathDrawingMode}
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="currentColor"
-              >
-                <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
-              </svg>
-            </button>
-          </div>
+      <div className="stage-controls">
+        <div className="zoom-controls">
+          <button className="zoom-btn" onClick={handleZoomOut} title="Zoom Out">
+            −
+          </button>
+          <span className="zoom-level">{Math.round(scale * 100)}%</span>
+          <button className="zoom-btn" onClick={handleZoomIn} title="Zoom In">
+            +
+          </button>
+          <button
+            className="zoom-btn reset"
+            onClick={handleResetView}
+            title="Reset View"
+          >
+            ⟲
+          </button>
+        </div>
+        <div className="stage-mode-controls">
+          <button
+            className={`mode-btn ${stageMode === "select" ? "active" : ""}`}
+            onClick={() => setStageMode("select")}
+            title="Select Mode"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M0 2l7 0l3 3l0 4l-2 0l0-3l-2-2l0 9l2 0l0 2l-6 0l0-2l2 0l0-9l-4 0z" />
+            </svg>
+          </button>
+          <button
+            className={`mode-btn ${stageMode === "draw" ? "active" : ""}`}
+            onClick={() => setStageMode("draw")}
+            title="Draw Mode"
+            disabled={!isStageInPathDrawingMode}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
+            </svg>
+          </button>
         </div>
       </div>
       <div
