@@ -102,70 +102,20 @@ const useFormationController = ({
         const group = customGroups[i];
         if (
           !group ||
-          typeof group.startBeat !== "number" ||
-          typeof group.groupLength !== "number"
+          typeof group.startTime !== "number" ||
+          typeof group.endTime !== "number"
         ) {
           continue;
         }
 
-        const groupStartBeat = group.startBeat;
-        const groupLength = Math.max(1, group.groupLength);
+        const groupStartTime = group.startTime;
+        const groupEndTime = group.endTime;
 
-        if (groupStartBeat < 0 || groupStartBeat >= beatTimestamps.length) {
-          continue;
-        }
-        const groupStartTime = beatTimestamps[groupStartBeat];
+        const transitionStartTime = group.transitionStartTime ?? groupStartTime;
+        const transitionEndTime = group.transitionEndTime ?? groupEndTime;
 
-        const nextGroup = customGroups[i + 1];
-        const nextGroupStartBeat = nextGroup?.startBeat ?? -1;
-        const groupEndTime =
-          nextGroup &&
-          nextGroupStartBeat >= 0 &&
-          nextGroupStartBeat < beatTimestamps.length
-            ? beatTimestamps[nextGroupStartBeat]
-            : Infinity;
-
-        const defaultTransitionStartBeat = groupStartBeat;
-        const defaultTransitionLength = Math.max(0, groupLength - 1);
-
-        const transitionStartBeat =
-          typeof group.transitionStartBeat === "number" &&
-          group.transitionStartBeat >= groupStartBeat &&
-          group.transitionStartBeat < groupStartBeat + groupLength
-            ? group.transitionStartBeat
-            : defaultTransitionStartBeat;
-
-        const transitionLength =
-          typeof group.transitionLength === "number" &&
-          group.transitionLength >= 0 &&
-          transitionStartBeat + group.transitionLength <=
-            groupStartBeat + groupLength
-            ? group.transitionLength
-            : defaultTransitionLength;
-
-        const transitionEndBeat = transitionStartBeat + transitionLength;
-
-        const safeStartBeatIndex = Math.min(
-          Math.max(0, transitionStartBeat),
-          beatTimestamps.length - 1
-        );
-        const safeEndBeatIndex = Math.min(
-          Math.max(0, transitionEndBeat),
-          beatTimestamps.length - 1
-        );
-
-        const transitionStartTime =
-          beatTimestamps[safeStartBeatIndex] ?? groupStartTime;
-        const transitionEndTime =
-          safeEndBeatIndex === safeStartBeatIndex
-            ? transitionStartTime
-            : beatTimestamps[safeEndBeatIndex] ?? transitionStartTime;
-
-        calculatedEffectiveStart = Math.max(
-          groupStartTime,
-          transitionStartTime
-        );
-        calculatedEffectiveEnd = Math.min(groupEndTime, transitionEndTime);
+        calculatedEffectiveStart = transitionStartTime;
+        calculatedEffectiveEnd = transitionEndTime;
         const effectiveTransitionDuration = Math.max(
           0,
           calculatedEffectiveEnd - calculatedEffectiveStart
@@ -202,7 +152,7 @@ const useFormationController = ({
       if (
         !foundState &&
         customGroups.length > 0 &&
-        currentTime < (beatTimestamps[customGroups[0]?.startBeat] ?? 0)
+        currentTime < (customGroups[0]?.startTime ?? 0)
       ) {
         calculatedIndex = null;
         calculatedInTransition = false;
@@ -215,50 +165,19 @@ const useFormationController = ({
       if (!foundState && customGroups.length > 0) {
         const lastGroupIndex = customGroups.length - 1;
         const lastGroup = customGroups[lastGroupIndex];
-        if (lastGroup && typeof lastGroup.startBeat === "number") {
-          const lastGroupStartTime = beatTimestamps[lastGroup.startBeat] ?? 0;
+        if (
+          lastGroup &&
+          typeof lastGroup.startTime === "number" &&
+          typeof lastGroup.endTime === "number"
+        ) {
+          const lastGroupStartTime = lastGroup.startTime;
           if (currentTime >= lastGroupStartTime) {
             calculatedIndex = lastGroupIndex;
-            const groupLength = Math.max(1, lastGroup.groupLength);
-            const defaultTransitionStartBeat = lastGroup.startBeat;
-            const defaultTransitionLength = Math.max(0, groupLength - 1);
 
-            const transitionStartBeat =
-              typeof lastGroup.transitionStartBeat === "number" &&
-              lastGroup.transitionStartBeat >= lastGroup.startBeat &&
-              lastGroup.transitionStartBeat < lastGroup.startBeat + groupLength
-                ? lastGroup.transitionStartBeat
-                : defaultTransitionStartBeat;
-            const transitionLength =
-              typeof lastGroup.transitionLength === "number" &&
-              lastGroup.transitionLength >= 0 &&
-              transitionStartBeat + lastGroup.transitionLength <=
-                lastGroup.startBeat + groupLength
-                ? lastGroup.transitionLength
-                : defaultTransitionLength;
+            const transitionStartTime = lastGroup.transitionStartTime ?? lastGroupStartTime;
+            const transitionEndTime = lastGroup.transitionEndTime ?? lastGroup.endTime;
 
-            const transitionEndBeat = transitionStartBeat + transitionLength;
-
-            const safeStartBeatIndex = Math.min(
-              Math.max(0, transitionStartBeat),
-              beatTimestamps.length - 1
-            );
-            const safeEndBeatIndex = Math.min(
-              Math.max(0, transitionEndBeat),
-              beatTimestamps.length - 1
-            );
-
-            const transitionStartTime =
-              beatTimestamps[safeStartBeatIndex] ?? lastGroupStartTime;
-            const transitionEndTime =
-              safeEndBeatIndex === safeStartBeatIndex
-                ? transitionStartTime
-                : beatTimestamps[safeEndBeatIndex] ?? transitionStartTime;
-
-            calculatedEffectiveStart = Math.max(
-              lastGroupStartTime,
-              transitionStartTime
-            );
+            calculatedEffectiveStart = transitionStartTime;
             calculatedEffectiveEnd = transitionEndTime;
             const effectiveTransitionDuration = Math.max(
               0,

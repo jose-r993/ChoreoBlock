@@ -249,54 +249,41 @@ const Waveform = ({
     }
   }, [regionsPluginRef]);
 
-  const findClosestBeatIndex = useCallback(
+  const findClosestBeatTime = useCallback(
     (time) => {
       if (!beatTimestamps || beatTimestamps.length === 0) return 0;
-      let closestIndex = 0;
+      let closestTime = beatTimestamps[0];
       let minDifference = Math.abs(beatTimestamps[0] - time);
       for (let i = 1; i < beatTimestamps.length; i++) {
         const difference = Math.abs(beatTimestamps[i] - time);
         if (difference < minDifference) {
           minDifference = difference;
-          closestIndex = i;
+          closestTime = beatTimestamps[i];
         }
       }
-      return closestIndex;
+      return closestTime;
     },
     [beatTimestamps]
   );
 
-  const beatToPosition = useCallback(
-    (beatIndex, totalWidth) => {
-      if (
-        !totalWidth ||
-        !duration ||
-        !beatTimestamps ||
-        beatTimestamps.length === 0
-      ) {
+  const timeToPosition = useCallback(
+    (time, totalWidth) => {
+      if (!totalWidth || !duration) {
         return 0;
       }
-      const idx = Math.min(Math.max(0, beatIndex), beatTimestamps.length - 1);
-      const time = beatTimestamps[idx] ?? 0;
       return (time / duration) * totalWidth;
     },
-    [beatTimestamps, duration]
+    [duration]
   );
 
-  const positionToBeat = useCallback(
+  const positionToTime = useCallback(
     (px, totalWidth) => {
-      if (
-        !totalWidth ||
-        duration === 0 ||
-        !beatTimestamps ||
-        beatTimestamps.length === 0
-      ) {
+      if (!totalWidth || duration === 0) {
         return 0;
       }
-      const time = (px / totalWidth) * duration;
-      return findClosestBeatIndex(time);
+      return (px / totalWidth) * duration;
     },
-    [beatTimestamps, duration, findClosestBeatIndex]
+    [duration]
   );
 
   const drawAllRegions = useCallback(() => {
@@ -304,29 +291,32 @@ const Waveform = ({
       return;
     try {
       clearAllRegions();
-      const beatMap = new Array(beatTimestamps.length).fill(null);
-      customGroups.forEach((group, groupIndex) => {
-        const startBeat = group.startBeat;
-        const endBeat = startBeat + group.groupLength;
-        const transStartBeat =
-          group.transitionStartBeat ?? startBeat + group.groupLength - 2;
-        const transEndBeat = transStartBeat + (group.transitionLength ?? 2);
-        for (let i = startBeat; i < endBeat && i < beatTimestamps.length; i++) {
-          beatMap[i] = {
-            groupIndex,
-            color: group.color,
-            isTransition: i >= transStartBeat && i < transEndBeat,
-          };
-        }
-      });
 
       if (layerVisibility.beatMarkers && beatTimestamps) {
         beatTimestamps.forEach((time, index) => {
           if (index % subdivisionFactor !== 0) return;
-          const beatInfo = beatMap[index];
+
+          // Check if this beat falls within any custom group
+          let beatInfo = null;
+          for (let groupIndex = 0; groupIndex < customGroups.length; groupIndex++) {
+            const group = customGroups[groupIndex];
+            if (time >= group.startTime && time < group.endTime) {
+              const isTransition =
+                time >= group.transitionStartTime &&
+                time < group.transitionEndTime;
+              beatInfo = {
+                groupIndex,
+                color: group.color,
+                isTransition,
+              };
+              break;
+            }
+          }
+
           let color = "#888888";
           let label = "";
           let isTransition = false;
+
           if (beatInfo) {
             color = beatInfo.color;
             label = `${beatInfo.groupIndex + 1}`;
@@ -407,95 +397,82 @@ const Waveform = ({
       if (type !== "formation" && type !== "transition") return;
       const group = customGroups[groupIndex];
       if (!group) return;
-      const startTime = region.start;
-      const endTime = region.end;
 
-      let startBeat = 0;
-      let endBeat = 0;
+      let newStartTime = region.start;
+      let newEndTime = region.end;
+
+      // Apply beat snapping if enabled
       if (snapMode === "beats") {
-        startBeat = findClosestBeatIndex(startTime);
-        endBeat = findClosestBeatIndex(endTime);
-        if (endBeat - startBeat < 2) endBeat = startBeat + 2;
-      } else {
-        startBeat = findClosestBeatIndex(startTime);
-        const beatDuration =
-          beatTimestamps && beatTimestamps.length > 1
-            ? beatTimestamps[1] - beatTimestamps[0]
-            : 0.1;
-        const formationDuration = endTime - startTime;
-        const estimatedBeats = Math.max(
-          2,
-          Math.round(formationDuration / beatDuration)
-        );
-        endBeat = startBeat + estimatedBeats;
-        if (beatTimestamps && endBeat >= beatTimestamps.length)
-          endBeat = beatTimestamps.length - 1;
+        newStartTime = findClosestBeatTime(newStartTime);
+        newEndTime = findClosestBeatTime(newEndTime);
+
+        // Ensure minimum duration
+        const minDuration = beatTimestamps && beatTimestamps.length > 1
+          ? (beatTimestamps[1] - beatTimestamps[0]) * 2
+          : 0.2;
+        if (newEndTime - newStartTime < minDuration) {
+          newEndTime = newStartTime + minDuration;
+        }
       }
 
-      const groupLength = endBeat - startBeat;
-      let newTransitionStartBeat;
-      let newTransitionLength;
-
       if (type === "formation") {
-        if (group.transitionStartBeat !== undefined) {
-          const oldRelativePosition =
-            group.groupLength > 0
-              ? (group.transitionStartBeat - group.startBeat) /
-                group.groupLength
-              : 0;
-          newTransitionStartBeat = Math.round(
-            startBeat + groupLength * oldRelativePosition
-          );
-          newTransitionStartBeat = Math.max(
-            startBeat,
-            Math.min(newTransitionStartBeat, startBeat + groupLength - 1)
-          );
-          newTransitionLength = Math.min(
-            group.transitionLength || 2,
-            startBeat + groupLength - newTransitionStartBeat
-          );
+        // Calculate new transition times based on relative position
+        let newTransitionStartTime;
+        let newTransitionEndTime;
+
+        if (group.transitionStartTime !== undefined && group.transitionEndTime !== undefined) {
+          const oldDuration = group.endTime - group.startTime;
+          const oldRelativeTransitionStart = oldDuration > 0
+            ? (group.transitionStartTime - group.startTime) / oldDuration
+            : 0.75;
+          const oldTransitionDuration = group.transitionEndTime - group.transitionStartTime;
+
+          const newDuration = newEndTime - newStartTime;
+          newTransitionStartTime = newStartTime + (newDuration * oldRelativeTransitionStart);
+          newTransitionEndTime = Math.min(newTransitionStartTime + oldTransitionDuration, newEndTime);
+
+          // Ensure transition doesn't exceed formation bounds
+          newTransitionStartTime = Math.max(newStartTime, Math.min(newTransitionStartTime, newEndTime - 0.1));
+          newTransitionEndTime = Math.max(newTransitionStartTime + 0.1, Math.min(newTransitionEndTime, newEndTime));
         } else {
-          newTransitionStartBeat = startBeat + groupLength - 2;
-          newTransitionLength = 2;
+          // Default: transition in last 2 seconds
+          const defaultTransitionDuration = Math.min(2, newEndTime - newStartTime);
+          newTransitionStartTime = newEndTime - defaultTransitionDuration;
+          newTransitionEndTime = newEndTime;
         }
+
         const updatedGroup = {
           ...group,
-          startBeat,
-          groupLength,
-          transitionStartBeat: newTransitionStartBeat,
-          transitionLength: Math.max(1, newTransitionLength),
+          startTime: newStartTime,
+          endTime: newEndTime,
+          transitionStartTime: newTransitionStartTime,
+          transitionEndTime: newTransitionEndTime,
         };
         onUpdateGroup(groupIndex, updatedGroup);
       } else if (type === "transition") {
-        let transitionStartBeat = 0;
-        let transitionEndBeat = 0;
+        let newTransitionStartTime = newStartTime;
+        let newTransitionEndTime = newEndTime;
+
+        // Apply beat snapping if enabled
         if (snapMode === "beats") {
-          transitionStartBeat = findClosestBeatIndex(startTime);
-          transitionEndBeat = findClosestBeatIndex(endTime);
-        } else {
-          transitionStartBeat = findClosestBeatIndex(startTime);
-          const beatDuration =
-            beatTimestamps && beatTimestamps.length > 1
-              ? beatTimestamps[1] - beatTimestamps[0]
-              : 0.1;
-          const transitionDuration = endTime - startTime;
-          const estimatedBeats = Math.max(
-            1,
-            Math.round(transitionDuration / beatDuration)
-          );
-          transitionEndBeat = transitionStartBeat + estimatedBeats;
+          newTransitionStartTime = findClosestBeatTime(newTransitionStartTime);
+          newTransitionEndTime = findClosestBeatTime(newTransitionEndTime);
         }
-        transitionStartBeat = Math.max(group.startBeat, transitionStartBeat);
-        transitionEndBeat = Math.min(
-          group.startBeat + group.groupLength,
-          transitionEndBeat
-        );
-        if (transitionEndBeat - transitionStartBeat < 1)
-          transitionEndBeat = transitionStartBeat + 1;
+
+        // Constrain transition within formation bounds
+        newTransitionStartTime = Math.max(group.startTime, newTransitionStartTime);
+        newTransitionEndTime = Math.min(group.endTime, newTransitionEndTime);
+
+        // Ensure minimum transition duration
+        const minTransitionDuration = 0.1;
+        if (newTransitionEndTime - newTransitionStartTime < minTransitionDuration) {
+          newTransitionEndTime = newTransitionStartTime + minTransitionDuration;
+        }
+
         const updatedGroup = {
           ...group,
-          transitionStartBeat: transitionStartBeat,
-          transitionLength: transitionEndBeat - transitionStartBeat,
+          transitionStartTime: newTransitionStartTime,
+          transitionEndTime: newTransitionEndTime,
         };
         onUpdateGroup(groupIndex, updatedGroup);
       }
@@ -525,7 +502,7 @@ const Waveform = ({
     onUpdateGroup,
     onSelectGroup,
     snapMode,
-    findClosestBeatIndex,
+    findClosestBeatTime,
     beatTimestamps,
   ]);
 
@@ -537,8 +514,8 @@ const Waveform = ({
     if (customGroups && customGroups.length > 0) {
       const lastGroup = customGroups[customGroups.length - 1];
       if (lastGroup) {
-        const lastBeat = lastGroup.startBeat + lastGroup.groupLength;
-        position = beatToPosition(lastBeat, waveformScrollWidth);
+        const lastEndTime = lastGroup.endTime;
+        position = timeToPosition(lastEndTime, waveformScrollWidth);
 
         position += 10;
       }
@@ -549,35 +526,47 @@ const Waveform = ({
     customGroups,
     waveformScrollWidth,
     isReady,
-    beatToPosition,
-    beatTimestamps,
+    timeToPosition,
     duration,
   ]);
 
   const handleAddFormation = useCallback(() => {
-    let lastEndBeat = 0;
+    let startTime = 0;
+
+    // Find the last endTime of all groups
     if (customGroups.length > 0) {
       customGroups.forEach((group) => {
-        const endBeat = group.startBeat + group.groupLength;
-        if (endBeat > lastEndBeat) lastEndBeat = endBeat;
+        const endTime = group.endTime;
+        if (endTime > startTime) startTime = endTime;
       });
     }
-    let startBeat = lastEndBeat;
+
+    // If we're past the last group, start at current playback position
     if (wavesurfer) {
       const currentTimeVal = wavesurfer.getCurrentTime();
-      const currentBeat = findClosestBeatIndex(currentTimeVal);
-      if (currentBeat > lastEndBeat) startBeat = currentBeat;
+      if (currentTimeVal > startTime) {
+        startTime = findClosestBeatTime(currentTimeVal);
+      }
     }
-    if (beatTimestamps && startBeat >= beatTimestamps.length - 8) {
-      startBeat = Math.max(0, beatTimestamps.length - 9);
+
+    // Default duration: 8 seconds
+    let duration = 8;
+
+    // Make sure we don't exceed the audio duration
+    if (wavesurfer) {
+      const audioDuration = wavesurfer.getDuration();
+      if (startTime + duration > audioDuration) {
+        duration = Math.max(1, audioDuration - startTime - 0.5);
+      }
     }
-    let groupLength = 8;
-    if (beatTimestamps && startBeat + groupLength >= beatTimestamps.length) {
-      groupLength = beatTimestamps.length - startBeat - 1;
-      if (groupLength < 2) groupLength = 2;
-    }
-    const transitionStartBeat = startBeat;
-    const transitionLength = groupLength > 2 ? groupLength - 2 : groupLength;
+
+    const endTime = startTime + duration;
+
+    // Default transition: last 2 seconds
+    const transitionDuration = Math.min(2, duration);
+    const transitionStartTime = endTime - transitionDuration;
+    const transitionEndTime = endTime;
+
     const MARKER_COLORS = [
       "#FF5500",
       "#00AAFF",
@@ -585,21 +574,21 @@ const Waveform = ({
       "#FFAA00",
       "#FF00AA",
     ];
+
     const newGroup = {
-      startBeat,
-      groupLength,
+      startTime,
+      endTime,
       color: MARKER_COLORS[customGroups.length % MARKER_COLORS.length],
-      transitionStartBeat,
-      transitionLength,
+      transitionStartTime,
+      transitionEndTime,
       groupName: `Formation ${customGroups.length + 1}`,
     };
     onAddGroup(newGroup);
   }, [
     customGroups,
-    beatTimestamps,
     onAddGroup,
     wavesurfer,
-    findClosestBeatIndex,
+    findClosestBeatTime,
   ]);
 
   const handleDragStart = useCallback(
@@ -622,14 +611,10 @@ const Waveform = ({
         groupIndex,
         edge,
         startX: x,
-        startBeat: customGroups[groupIndex].startBeat,
-        groupLength: customGroups[groupIndex].groupLength,
-        transitionStartBeat:
-          customGroups[groupIndex].transitionStartBeat ??
-          customGroups[groupIndex].startBeat +
-            customGroups[groupIndex].groupLength -
-            2,
-        transitionLength: customGroups[groupIndex].transitionLength ?? 2,
+        startTime: customGroups[groupIndex].startTime,
+        endTime: customGroups[groupIndex].endTime,
+        transitionStartTime: customGroups[groupIndex].transitionStartTime,
+        transitionEndTime: customGroups[groupIndex].transitionEndTime,
       });
     },
     [customGroups, wavesurfer]
@@ -640,14 +625,11 @@ const Waveform = ({
       e.stopPropagation();
       onSelectGroup(groupIndex);
       if (wavesurfer && customGroups[groupIndex]) {
-        const beatIndex = customGroups[groupIndex].startBeat;
-        if (beatTimestamps && beatTimestamps[beatIndex] !== undefined) {
-          const time = beatTimestamps[beatIndex];
-          if (duration > 0) wavesurfer.seekTo(time / duration);
-        }
+        const time = customGroups[groupIndex].startTime;
+        if (duration > 0) wavesurfer.seekTo(time / duration);
       }
     },
-    [wavesurfer, customGroups, beatTimestamps, duration, onSelectGroup]
+    [wavesurfer, customGroups, duration, onSelectGroup]
   );
 
   useEffect(() => {
@@ -666,141 +648,129 @@ const Waveform = ({
       const containerRect = formationsDiv.getBoundingClientRect();
       const currentScrollLeft = waveWrapper.scrollLeft;
       const x = e.clientX - containerRect.left + currentScrollLeft;
-      let currentBeat = 0;
+
+      // Convert pixel position to time
+      let currentTime = positionToTime(x, totalWidth);
+      let startTimeDrag = positionToTime(dragInfo.startX, totalWidth);
+
+      // Apply beat snapping if enabled
       if (snapMode === "beats") {
-        currentBeat = findClosestBeatIndex((x / totalWidth) * duration);
-      } else {
-        const time = (x / totalWidth) * duration;
-        currentBeat = findClosestBeatIndex(time);
+        currentTime = findClosestBeatTime(currentTime);
+        startTimeDrag = findClosestBeatTime(startTimeDrag);
       }
-      let startBeatDrag = 0;
-      if (snapMode === "beats") {
-        startBeatDrag = findClosestBeatIndex(
-          (dragInfo.startX / totalWidth) * duration
-        );
-      } else {
-        const startTime = (dragInfo.startX / totalWidth) * duration;
-        startBeatDrag = findClosestBeatIndex(startTime);
-      }
-      let deltaBeat = currentBeat - startBeatDrag;
-      if (snapMode !== "beats") {
-        const pixelDelta = x - dragInfo.startX;
-        const timeDelta = (pixelDelta / totalWidth) * duration;
-        const beatDuration =
-          beatTimestamps && beatTimestamps.length > 1
-            ? beatTimestamps[1] - beatTimestamps[0]
-            : 0.1;
-        deltaBeat = Math.round(timeDelta / beatDuration);
-      }
+
+      const deltaTime = currentTime - startTimeDrag;
+
       const group = customGroups[dragInfo.groupIndex];
       if (!group) return;
-      let {
-        startBeat: newStartBeat,
-        groupLength: newGroupLength,
-        transitionStartBeat: newTransitionStartBeat,
-        transitionLength: newTransitionLength,
-      } = group;
+
+      let newStartTime = group.startTime;
+      let newEndTime = group.endTime;
+      let newTransitionStartTime = group.transitionStartTime;
+      let newTransitionEndTime = group.transitionEndTime;
+
+      const audioDuration = wavesurfer.getDuration();
+      const minDuration = 0.5; // Minimum formation duration
 
       if (dragInfo.edge === "start") {
-        newStartBeat = Math.max(0, dragInfo.startBeat + deltaBeat);
-        const endBeat = dragInfo.startBeat + dragInfo.groupLength;
-        if (newStartBeat + 2 > endBeat) newStartBeat = endBeat - 2;
-        newGroupLength = endBeat - newStartBeat;
-        const oldTransitionStartOffset =
-          (dragInfo.transitionStartBeat ??
-            dragInfo.startBeat + dragInfo.groupLength - 2) - dragInfo.startBeat;
-        newTransitionStartBeat = newStartBeat + oldTransitionStartOffset;
-        newTransitionLength = dragInfo.transitionLength ?? 2;
-        if (newTransitionStartBeat < newStartBeat) {
-          newTransitionLength -= newStartBeat - newTransitionStartBeat;
-          newTransitionStartBeat = newStartBeat;
-        }
-        if (
-          newTransitionStartBeat + newTransitionLength >
-          newStartBeat + newGroupLength
-        ) {
-          newTransitionLength =
-            newStartBeat + newGroupLength - newTransitionStartBeat;
-        }
-      } else if (dragInfo.edge === "end") {
-        newGroupLength = Math.max(2, dragInfo.groupLength + deltaBeat);
-        if (
-          beatTimestamps &&
-          dragInfo.startBeat + newGroupLength >= beatTimestamps.length
-        ) {
-          newGroupLength = beatTimestamps.length - dragInfo.startBeat - 1;
-        }
-        newStartBeat = dragInfo.startBeat;
-        newTransitionStartBeat =
-          dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2;
-        newTransitionLength = dragInfo.transitionLength ?? 2;
-        if (
-          newTransitionStartBeat + newTransitionLength >
-          newStartBeat + newGroupLength
-        ) {
-          newTransitionLength =
-            newStartBeat + newGroupLength - newTransitionStartBeat;
-        }
-      } else if (dragInfo.edge === "transition-start") {
-        newStartBeat = dragInfo.startBeat;
-        newGroupLength = dragInfo.groupLength;
-        const originalTransitionEndBeat =
-          (dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2) +
-          (dragInfo.transitionLength ?? 2);
-        newTransitionStartBeat = Math.max(
-          newStartBeat,
-          (dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2) +
-            deltaBeat
-        );
-        if (newTransitionStartBeat + 1 > originalTransitionEndBeat) {
-          newTransitionStartBeat = originalTransitionEndBeat - 1;
-        }
-        newTransitionLength =
-          originalTransitionEndBeat - newTransitionStartBeat;
-      } else if (dragInfo.edge === "transition-end") {
-        newStartBeat = dragInfo.startBeat;
-        newGroupLength = dragInfo.groupLength;
-        newTransitionStartBeat =
-          dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2;
-        const currentTransitionEndBeat =
-          (dragInfo.transitionStartBeat ?? newStartBeat + newGroupLength - 2) +
-          (dragInfo.transitionLength ?? 2);
-        const newTransitionEndBeat = Math.min(
-          newStartBeat + newGroupLength,
-          currentTransitionEndBeat + deltaBeat
-        );
-        newTransitionLength = Math.max(
-          1,
-          newTransitionEndBeat - newTransitionStartBeat
-        );
-      }
-      newTransitionLength = Math.max(1, newTransitionLength);
-      newTransitionStartBeat = Math.max(newStartBeat, newTransitionStartBeat);
-      newTransitionLength = Math.min(
-        newTransitionLength,
-        newStartBeat + newGroupLength - newTransitionStartBeat
-      );
-      newTransitionStartBeat = Math.min(
-        newTransitionStartBeat,
-        newStartBeat + newGroupLength - newTransitionLength
-      );
+        newStartTime = Math.max(0, dragInfo.startTime + deltaTime);
+        const originalEndTime = dragInfo.endTime;
 
+        // Ensure minimum duration
+        if (originalEndTime - newStartTime < minDuration) {
+          newStartTime = originalEndTime - minDuration;
+        }
+        newEndTime = originalEndTime;
+
+        // Adjust transition to maintain relative position
+        const originalDuration = dragInfo.endTime - dragInfo.startTime;
+        const oldTransitionStartOffset = dragInfo.transitionStartTime - dragInfo.startTime;
+        const transitionDuration = dragInfo.transitionEndTime - dragInfo.transitionStartTime;
+
+        newTransitionStartTime = newStartTime + oldTransitionStartOffset;
+        newTransitionEndTime = newTransitionStartTime + transitionDuration;
+
+        // Constrain transition within formation bounds
+        newTransitionStartTime = Math.max(newStartTime, Math.min(newTransitionStartTime, newEndTime - 0.1));
+        newTransitionEndTime = Math.min(newEndTime, newTransitionEndTime);
+
+      } else if (dragInfo.edge === "end") {
+        newStartTime = dragInfo.startTime;
+        newEndTime = Math.min(audioDuration, dragInfo.endTime + deltaTime);
+
+        // Ensure minimum duration
+        if (newEndTime - newStartTime < minDuration) {
+          newEndTime = newStartTime + minDuration;
+        }
+
+        // Adjust transition to maintain relative position
+        const newDuration = newEndTime - newStartTime;
+        const originalDuration = dragInfo.endTime - dragInfo.startTime;
+
+        if (originalDuration > 0) {
+          const transitionRelativeStart = (dragInfo.transitionStartTime - dragInfo.startTime) / originalDuration;
+          const transitionRelativeDuration = (dragInfo.transitionEndTime - dragInfo.transitionStartTime) / originalDuration;
+
+          newTransitionStartTime = newStartTime + (newDuration * transitionRelativeStart);
+          newTransitionEndTime = newTransitionStartTime + (newDuration * transitionRelativeDuration);
+        } else {
+          newTransitionStartTime = newEndTime - 2;
+          newTransitionEndTime = newEndTime;
+        }
+
+        // Constrain transition within formation bounds
+        newTransitionStartTime = Math.max(newStartTime, Math.min(newTransitionStartTime, newEndTime - 0.1));
+        newTransitionEndTime = Math.min(newEndTime, newTransitionEndTime);
+
+      } else if (dragInfo.edge === "transition-start") {
+        newStartTime = dragInfo.startTime;
+        newEndTime = dragInfo.endTime;
+
+        newTransitionStartTime = Math.max(
+          newStartTime,
+          dragInfo.transitionStartTime + deltaTime
+        );
+        newTransitionEndTime = dragInfo.transitionEndTime;
+
+        // Ensure transition doesn't go past its end
+        if (newTransitionStartTime >= newTransitionEndTime - 0.1) {
+          newTransitionStartTime = newTransitionEndTime - 0.1;
+        }
+
+      } else if (dragInfo.edge === "transition-end") {
+        newStartTime = dragInfo.startTime;
+        newEndTime = dragInfo.endTime;
+        newTransitionStartTime = dragInfo.transitionStartTime;
+
+        newTransitionEndTime = Math.min(
+          newEndTime,
+          dragInfo.transitionEndTime + deltaTime
+        );
+
+        // Ensure minimum transition duration
+        if (newTransitionEndTime - newTransitionStartTime < 0.1) {
+          newTransitionEndTime = newTransitionStartTime + 0.1;
+        }
+      }
+
+      // Check for overlaps with other groups
       let willOverlap = false;
-      const newEndBeatCheck = newStartBeat + newGroupLength;
       customGroups.forEach((otherGroup, otherIndex) => {
         if (otherIndex === dragInfo.groupIndex) return;
-        const otherStart = otherGroup.startBeat;
-        const otherEnd = otherStart + otherGroup.groupLength;
-        if (newStartBeat < otherEnd && otherStart < newEndBeatCheck)
+        const otherStart = otherGroup.startTime;
+        const otherEnd = otherGroup.endTime;
+        if (newStartTime < otherEnd && otherStart < newEndTime) {
           willOverlap = true;
+        }
       });
+
       if (!willOverlap) {
         const updatedGroup = {
           ...group,
-          startBeat: newStartBeat,
-          groupLength: newGroupLength,
-          transitionStartBeat: newTransitionStartBeat,
-          transitionLength: newTransitionLength,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          transitionStartTime: newTransitionStartTime,
+          transitionEndTime: newTransitionEndTime,
         };
         requestAnimationFrame(() => {
           onUpdateGroup(dragInfo.groupIndex, updatedGroup);
@@ -829,10 +799,9 @@ const Waveform = ({
     customGroups,
     onUpdateGroup,
     snapMode,
-    positionToBeat,
+    positionToTime,
     wavesurfer,
-    beatTimestamps,
-    findClosestBeatIndex,
+    findClosestBeatTime,
     duration,
   ]);
 
@@ -840,7 +809,7 @@ const Waveform = ({
     if (!hoverBeat) return null;
     return (
       <div className="beat-tooltip">
-        Beats {hoverBeat.start + 1} - {hoverBeat.end + 1}
+        {hoverBeat.start.toFixed(2)}s - {hoverBeat.end.toFixed(2)}s
       </div>
     );
   }, [hoverBeat]);
@@ -919,27 +888,24 @@ const Waveform = ({
     }
 
     return customGroups.map((group, originalIndex) => {
-      const startPosition = beatToPosition(
-        group.startBeat,
+      const startPosition = timeToPosition(
+        group.startTime,
         waveformScrollWidth
       );
-      const endPosition = beatToPosition(
-        group.startBeat + group.groupLength,
+      const endPosition = timeToPosition(
+        group.endTime,
         waveformScrollWidth
       );
       const width = Math.max(endPosition - startPosition, 2);
 
       if (isNaN(startPosition) || isNaN(width)) return null;
 
-      const transitionStartBeat =
-        group.transitionStartBeat ?? group.startBeat + group.groupLength - 2;
-      const transitionLength = group.transitionLength ?? 2;
-      const transitionStartPosition = beatToPosition(
-        transitionStartBeat,
+      const transitionStartPosition = timeToPosition(
+        group.transitionStartTime,
         waveformScrollWidth
       );
-      const transitionEndPosition = beatToPosition(
-        transitionStartBeat + transitionLength,
+      const transitionEndPosition = timeToPosition(
+        group.transitionEndTime,
         waveformScrollWidth
       );
       const transitionWidth = Math.max(
@@ -949,7 +915,7 @@ const Waveform = ({
 
       return (
         <div
-          key={`formation-${originalIndex}-${group.startBeat}`}
+          key={`formation-${originalIndex}-${group.startTime}`}
           className={`formation-group ${
             activeGroupIndex === originalIndex ? "active" : ""
           }`}
@@ -1001,8 +967,8 @@ const Waveform = ({
               }}
               onMouseEnter={() =>
                 setHoverBeat({
-                  start: transitionStartBeat,
-                  end: transitionStartBeat + transitionLength - 1,
+                  start: group.transitionStartTime,
+                  end: group.transitionEndTime,
                   groupIndex: originalIndex,
                 })
               }
@@ -1018,14 +984,14 @@ const Waveform = ({
                   onMouseDown={(e) =>
                     handleDragStart(e, originalIndex, "transition-start")
                   }
-                  title={`Beat ${transitionStartBeat + 1}`}
+                  title={`Time ${group.transitionStartTime.toFixed(2)}s`}
                 ></div>
                 <div
                   className="handle-transition-end"
                   onMouseDown={(e) =>
                     handleDragStart(e, originalIndex, "transition-end")
                   }
-                  title={`Beat ${transitionStartBeat + transitionLength}`}
+                  title={`Time ${group.transitionEndTime.toFixed(2)}s`}
                 ></div>
               </div>
             </div>
@@ -1046,7 +1012,7 @@ const Waveform = ({
     duration,
     activeGroupIndex,
     layerVisibility,
-    beatToPosition,
+    timeToPosition,
     handleFormationClick,
     handleDragStart,
     setHoverBeat,
@@ -1129,17 +1095,15 @@ const Waveform = ({
           {customGroups.length > 0 &&
           activeGroupIndex !== null &&
           customGroups[activeGroupIndex]
-            ? `Formation ${activeGroupIndex + 1}: Beats ${
-                customGroups[activeGroupIndex].startBeat + 1
-              }-${
-                customGroups[activeGroupIndex].startBeat +
-                customGroups[activeGroupIndex].groupLength
-              }, Transition: Beats ${
-                customGroups[activeGroupIndex].transitionStartBeat + 1
-              }-${
-                customGroups[activeGroupIndex].transitionStartBeat +
-                customGroups[activeGroupIndex].transitionLength
-              }`
+            ? `Formation ${activeGroupIndex + 1}: ${
+                customGroups[activeGroupIndex].startTime.toFixed(2)
+              }s-${
+                customGroups[activeGroupIndex].endTime.toFixed(2)
+              }s, Transition: ${
+                customGroups[activeGroupIndex].transitionStartTime.toFixed(2)
+              }s-${
+                customGroups[activeGroupIndex].transitionEndTime.toFixed(2)
+              }s`
             : ""}
         </span>
       </div>
@@ -1171,5 +1135,9 @@ const Waveform = ({
     </div>
   );
 };
+
+const CreateProject = () => {
+  
+}
 
 export default Waveform;

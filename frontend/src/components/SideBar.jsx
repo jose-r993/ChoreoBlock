@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import CustomBeatGroups from "./CustomBeatGroups";
 import DancerManagement from "./DancerManagement";
 import PathDrawing from "./PathDrawing";
+import ProjectManagement from "./ProjectManagement";
 import "../styles/SideBar.scss";
 import stylusIcon from "../assets/stylusIcon.svg";
 import dancerIcon from "../assets/dancerIcon.svg";
+import databaseIcon from "../assets/databaseIcon.svg";
 
 const SideBar = ({
   customGroups,
@@ -32,7 +34,10 @@ const SideBar = ({
   onAddDancerPathForSidebar,
   selectedDancerIds,
   onDancersSelected,
-  createJSON,
+  onSaveProject,
+  onLoadProject,
+  projectName,
+  audioFileName,
 }) => {
   const [activeTab, setActiveTab] = useState("beatGroups");
 
@@ -105,6 +110,19 @@ const SideBar = ({
         />
       ),
     },
+    {
+      id: "project",
+      label: "Project",
+      icon: databaseIcon,
+      component: (
+        <ProjectManagement
+          onSave={onSaveProject}
+          onLoad={onLoadProject}
+          projectName={projectName}
+          audioFileName={audioFileName}
+        />
+      ),
+    },
   ];
 
   return (
@@ -120,7 +138,6 @@ const SideBar = ({
             <img className="tab-icon" src={tab.icon} alt={tab.label} />
           </button>
         ))}
-        <button onClick={createJSON}>Save</button>
       </div>
       <div className="tab-content">
         {tabs.find((tab) => tab.id === activeTab)?.component}

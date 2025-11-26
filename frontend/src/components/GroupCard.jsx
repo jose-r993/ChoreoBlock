@@ -14,54 +14,61 @@ const GroupCard = ({
 }) => {
   const [collapsedGroup, setCollapsedGroup] = useState(null);
 
-  const handleJumpToGroup = (startBeat, index) => {
-    if (beatTimestamps && beatTimestamps.length > startBeat) {
-      const timestamp = beatTimestamps[startBeat];
-      onJumpToPosition(timestamp, index);
-    }
+  const handleJumpToGroup = (startTime, index) => {
+    onJumpToPosition(startTime, index);
   };
 
   // Group level transition settings
   const handleTransitionStartChange = (e) => {
     if (activeGroupIndex === null) return;
 
-    const value = parseInt(e.target.value, 10);
+    const value = parseFloat(e.target.value);
     if (isNaN(value) || value < 0) return;
 
     const group = customGroups[activeGroupIndex];
     if (!group) return;
 
-    // Make sure transition start is within group length
-    const maxTransitionStart = group.groupLength + group.startBeat - 1;
-    const validValue = Math.min(value, maxTransitionStart);
+    // Make sure transition start is within group bounds
+    const validValue = Math.max(group.startTime, Math.min(value, group.endTime - 0.1));
+
+    // Keep transition duration the same
+    const currentDuration = group.transitionEndTime - group.transitionStartTime;
+    let newTransitionEndTime = validValue + currentDuration;
+
+    // Ensure transition end doesn't exceed group end
+    if (newTransitionEndTime > group.endTime) {
+      newTransitionEndTime = group.endTime;
+    }
 
     const updatedGroup = {
       ...group,
-      transitionStartBeat:
-        validValue >= group.startBeat ? validValue : group.startBeat,
+      transitionStartTime: validValue,
+      transitionEndTime: newTransitionEndTime,
     };
 
     onUpdateGroup(activeGroupIndex, updatedGroup);
   };
 
-  const handleTransitionLengthChange = (e) => {
+  const handleTransitionDurationChange = (e) => {
     if (activeGroupIndex === null) return;
 
-    const value = parseInt(e.target.value, 10);
+    const value = parseFloat(e.target.value);
     if (isNaN(value) || value <= 0) return;
 
     const group = customGroups[activeGroupIndex];
     if (!group) return;
 
-    // Ensure transition doesn't exceed group length
-    const transitionStart = group.transitionStartBeat || 0;
-    const maxLength =
-      group.transitionStartBeat + group.groupLength - transitionStart;
-    const validValue = Math.min(value, maxLength);
+    // Calculate new end time based on duration
+    let newTransitionEndTime = group.transitionStartTime + value;
+
+    // Ensure transition doesn't exceed group bounds
+    if (newTransitionEndTime > group.endTime) {
+      newTransitionEndTime = group.endTime;
+    }
 
     const updatedGroup = {
       ...group,
-      transitionLength: validValue,
+      transitionEndTime: newTransitionEndTime,
     };
 
     onUpdateGroup(activeGroupIndex, updatedGroup);
@@ -71,7 +78,7 @@ const GroupCard = ({
     <div
       key={idx}
       className={`group-item ${activeGroupIndex === idx ? "active" : ""}`}
-      onClick={() => handleJumpToGroup(group.startBeat, idx)}
+      onClick={() => handleJumpToGroup(group.startTime, idx)}
     >
       <div className="group-item-header">
         <span
@@ -121,12 +128,12 @@ const GroupCard = ({
       </div>
       <div className="group-details">
         <div className="detail-item">
-          <span className="detail-label">Start Beat:</span>
-          <span className="detail-value">{group.startBeat + 1}</span>
+          <span className="detail-label">Start Time:</span>
+          <span className="detail-value">{group.startTime?.toFixed(2)}s</span>
         </div>
         <div className="detail-item">
-          <span className="detail-label">Length:</span>
-          <span className="detail-value">{group.groupLength}</span>
+          <span className="detail-label">Duration:</span>
+          <span className="detail-value">{(group.endTime - group.startTime)?.toFixed(2)}s</span>
         </div>
       </div>
       {collapsedGroup && (
@@ -134,35 +141,30 @@ const GroupCard = ({
           <h4>Transition Settings</h4>
           <div className="transition-settings">
             <div className="setting-group">
-              <label>Transition Start Beat:</label>
+              <label>Transition Start Time (seconds):</label>
               <div className="input-with-help">
                 <input
                   type="number"
-                  value={group.transitionStartBeat}
+                  step="0.1"
+                  value={group.transitionStartTime?.toFixed(2)}
                   onChange={handleTransitionStartChange}
-                  min="0"
-                  max={
-                    customGroups[activeGroupIndex]?.groupLength +
-                      group.transitionStartBeat -
-                      1 || 0
-                  }
+                  min={group.startTime}
+                  max={group.endTime - 0.1}
                 />
-                <span className="help-text">Beats after group start</span>
+                <span className="help-text">Seconds from group start</span>
               </div>
             </div>
 
             <div className="setting-group">
-              <label>Transition Length (beats):</label>
+              <label>Transition Duration (seconds):</label>
               <div className="input-with-help">
                 <input
                   type="number"
-                  value={group.transitionLength}
-                  onChange={handleTransitionLengthChange}
-                  min="1"
-                  max={
-                    (customGroups[activeGroupIndex]?.groupLength || 0) -
-                    (group.transitionStartBeat - group.startBeat || 0)
-                  }
+                  step="0.1"
+                  value={(group.transitionEndTime - group.transitionStartTime)?.toFixed(2)}
+                  onChange={handleTransitionDurationChange}
+                  min="0.1"
+                  max={(group.endTime - group.transitionStartTime)?.toFixed(2)}
                 />
                 <span className="help-text">How long the transition takes</span>
               </div>
@@ -175,13 +177,13 @@ const GroupCard = ({
                 className="transition-region"
                 style={{
                   left: `${
-                    (group.transitionStartBeat /
-                      (customGroups[activeGroupIndex]?.groupLength || 1)) *
+                    ((group.transitionStartTime - group.startTime) /
+                      (group.endTime - group.startTime || 1)) *
                     100
                   }%`,
                   width: `${
-                    (group.transitionLength /
-                      (customGroups[activeGroupIndex]?.groupLength || 1)) *
+                    ((group.transitionEndTime - group.transitionStartTime) /
+                      (group.endTime - group.startTime || 1)) *
                     100
                   }%`,
                 }}
@@ -189,9 +191,9 @@ const GroupCard = ({
                 <span>Transition</span>
               </div>
               <div className="time-indicators">
-                <span className="start">0</span>
+                <span className="start">{group.startTime?.toFixed(1)}s</span>
                 <span className="end">
-                  {customGroups[activeGroupIndex]?.groupLength || 0}
+                  {group.endTime?.toFixed(1)}s
                 </span>
               </div>
             </div>

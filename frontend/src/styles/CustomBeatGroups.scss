@@ -154,6 +154,29 @@
     }
   }
 
+  .info-message {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: #1a1a1a;
+    border-left: 3px solid #00AAFF;
+    border-radius: 4px;
+
+    p {
+      margin: 0.5rem 0;
+      color: #aaa;
+      font-size: 0.85rem;
+      line-height: 1.5;
+
+      &:first-child {
+        margin-top: 0;
+      }
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+
   // Groups list styling with scrolling
   .groups-list {
     border-radius: 0.5rem;

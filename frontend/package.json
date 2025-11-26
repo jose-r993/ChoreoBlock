@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.84.0",
     "@wavesurfer/react": "^1.0.10",
     "motion": "^12.6.2",
     "react": "^19.0.0",

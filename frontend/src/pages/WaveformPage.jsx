@@ -3,7 +3,10 @@ import { useLocation } from "react-router";
 import Waveform from "../components/Waveform";
 import SideBar from "../components/SideBar";
 import Stage from "../components/Stage";
+import SaveProjectModal from "../components/SaveProjectModal";
+import LoadProjectModal from "../components/LoadProjectModal";
 import useFormationController from "../components/FormationController";
+import { choreographyService } from "../services/choreographyService";
 import "../styles/WaveformPage.scss";
 
 const MARKER_COLORS = ["#FF5500", "#00AAFF", "#22CCAA", "#FFAA00", "#FF00AA"];
@@ -18,6 +21,12 @@ const WaveformPage = () => {
   const { audioFile, bpm, beatTimestamps = [] } = location.state || {};
   const wavesurferRef = useRef(null);
   const nextDancerIndexRef = useRef(0);
+
+  // Project state
+  const [projectId, setProjectId] = useState(null);
+  const [projectName, setProjectName] = useState('');
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -93,7 +102,7 @@ const WaveformPage = () => {
     setInitialPositions(newInitialPositions);
   }, [dancers]);
 
-  const formationController = useFormationController({
+  const formationController = useFormationController({ 
     dancers,
     formations,
     customGroups,
@@ -232,27 +241,35 @@ const WaveformPage = () => {
 
   const handleAddGroup = useCallback(
     (newGroupData) => {
-      const groupLength = Math.max(
-        1,
-        parseInt(newGroupData.groupLength, 10) || 8
-      );
-      const startBeat = parseInt(newGroupData.startBeat, 10) || 0;
-      const defaultTransitionStartBeat = startBeat;
-      const defaultTransitionLength = Math.max(0, groupLength - 1);
+      // Calculate startTime based on the last group's endTime, or 0 if first group
+      let startTime = 0;
+      if (customGroups.length > 0) {
+        const lastGroup = customGroups[customGroups.length - 1];
+        startTime = lastGroup.endTime || 0;
+      }
+
+      // Default duration is ~8 seconds
+      const defaultDuration = 8;
+      const endTime = startTime + defaultDuration;
+
+      // Default transition: last 2 seconds before the end
+      const defaultTransitionDuration = Math.min(2, defaultDuration);
+      const defaultTransitionStartTime = endTime - defaultTransitionDuration;
+      const defaultTransitionEndTime = endTime;
+
       const addedGroup = {
         ...newGroupData,
-        startBeat: startBeat,
-        groupLength: groupLength,
-        transitionStartBeat:
-          newGroupData.transitionStartBeat ?? defaultTransitionStartBeat,
-        transitionLength:
-          newGroupData.transitionLength ?? defaultTransitionLength,
+        startTime: newGroupData.startTime ?? startTime,
+        endTime: newGroupData.endTime ?? endTime,
+        transitionStartTime: newGroupData.transitionStartTime ?? defaultTransitionStartTime,
+        transitionEndTime: newGroupData.transitionEndTime ?? defaultTransitionEndTime,
       };
+
       const newGroupIndex = customGroups.length;
       setCustomGroups((prevGroups) => [...prevGroups, addedGroup]);
       setActiveGroupIndex(newGroupIndex);
     },
-    [customGroups.length]
+    [customGroups]
   );
 
   const handleUpdateGroup = useCallback(
@@ -390,36 +407,61 @@ const WaveformPage = () => {
     if (
       index !== null &&
       customGroups[index] &&
-      beatTimestamps.length > 0 &&
-      customGroups[index].startBeat >= 0 &&
-      customGroups[index].startBeat < beatTimestamps.length
+      typeof customGroups[index].startTime === 'number'
     ) {
       const group = customGroups[index];
-      const beatIndex = group.startBeat;
-      const timestamp = beatTimestamps[beatIndex];
+      const timestamp = group.startTime;
       handleJumpToPosition(timestamp, index);
     }
     setSelectedDancerIds(new Set());
   };
 
-  const createJSON = () => {
-    // const fs = require("fs");
-    const jsonDATA = {
-      audioFile: audioFile,
-      dancers: dancers,
-      formations: formations,
-      customGroups: customGroups,
-      beatTimestamps: beatTimeStamps,
-    };
+  // Save project handler
+  const handleSaveProject = async ({ name, description }) => {
+    try {
+      const projectData = {
+        id: projectId, // null for new projects, existing ID for updates
+        name,
+        description,
+        bpm,
+        audioFileName: audioFile?.name,
+        audioFileUrl: null, // TODO: Implement audio file upload to Supabase Storage
+        beatTimestamps,
+        customGroups,
+        dancers,
+        formations,
+      };
 
-    const projectFile = jsonDATA.strin(ify(jsonDATA, null, 2));
-    const filePath = "./project1.json";
-    fs.writeFile(filePath, projectFile, (err) => {
-      if (err) {
-        console.error("Error writing file:", err);
+      const result = await choreographyService.saveProject(projectData);
+      setProjectId(result.id);
+      setProjectName(name);
+      alert(`Project "${name}" saved successfully!`);
+    } catch (error) {
+      console.error('Failed to save project:', error);
+      throw error;
+    }
+  };
+
+  // Load project handler
+  const handleLoadProject = (loadedProject) => {
+    try {
+      setProjectId(loadedProject.id);
+      setProjectName(loadedProject.name);
+      setCustomGroups(loadedProject.customGroups);
+      setDancers(loadedProject.dancers);
+      setFormations(loadedProject.formations);
+
+      // Update nextDancerIndexRef
+      if (loadedProject.dancers.length > 0) {
+        const maxIndex = Math.max(...loadedProject.dancers.map(d => d.orderIndex));
+        nextDancerIndexRef.current = maxIndex + 1;
       }
-      console.log("File written successfully:", filePath);
-    });
+
+      alert(`Project "${loadedProject.name}" loaded successfully!`);
+    } catch (error) {
+      console.error('Failed to load project:', error);
+      throw error;
+    }
   };
 
   if (!audioFile || !beatTimestamps || beatTimestamps.length === 0) {
@@ -470,7 +512,10 @@ const WaveformPage = () => {
             onAddDancerPathForSidebar={formationController.addDancerPath}
             selectedDancerIds={selectedDancerIds}
             onDancersSelected={handleDancersSelected}
-            createJSON={createJSON}
+            onSaveProject={() => setIsSaveModalOpen(true)}
+            onLoadProject={() => setIsLoadModalOpen(true)}
+            projectName={projectName}
+            audioFileName={audioFile?.name}
           />
         </div>
         <Stage
@@ -516,6 +561,20 @@ const WaveformPage = () => {
           activeGroupIndex={activeGroupIndex}
         />
       </div>
+
+      {/* Save and Load Modals */}
+      <SaveProjectModal
+        isOpen={isSaveModalOpen}
+        onClose={() => setIsSaveModalOpen(false)}
+        onSave={handleSaveProject}
+        currentProjectName={projectName}
+      />
+
+      <LoadProjectModal
+        isOpen={isLoadModalOpen}
+        onClose={() => setIsLoadModalOpen(false)}
+        onLoad={handleLoadProject}
+      />
     </div>
   );
 };

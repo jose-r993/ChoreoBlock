@@ -1,0 +1,90 @@
+@import './SaveProjectModal.scss';
+
+.load-modal {
+  max-width: 700px;
+}
+
+.projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.project-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background-color: #2a2a2a;
+  border: 2px solid #444;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #666;
+    background-color: #333;
+  }
+
+  &.selected {
+    border-color: #00AAFF;
+    background-color: #00AAFF20;
+  }
+}
+
+.project-info {
+  flex: 1;
+
+  h3 {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+    color: #fff;
+  }
+
+  .project-description {
+    margin: 0 0 8px 0;
+    color: #aaa;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .project-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85rem;
+    color: #888;
+
+    .bpm {
+      color: #00AAFF;
+      font-weight: 500;
+    }
+  }
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  padding: 8px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.2s;
+  border-radius: 4px;
+
+  &:hover {
+    opacity: 1;
+    background-color: #ff000020;
+  }
+}
+
+.loading-message,
+.empty-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+  font-size: 1rem;
+}
+
+.loading-message {
+  color: #00AAFF;
+}
