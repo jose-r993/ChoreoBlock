@@ -96,6 +96,89 @@ const chaikinSmooth = (points, iterations = 2) => {
 };
 
 /**
+ * Detects corner points (direction changes) in a path
+ */
+const detectCorners = (rawPoints, angleThreshold = 45, minSegmentLength = 20) => {
+  if (rawPoints.length < 3) return [0, rawPoints.length - 1];
+
+  const corners = [0];
+
+  for (let i = 2; i < rawPoints.length - 1; i++) {
+    const lookback = Math.min(i, 3);
+    const prev = rawPoints[i - lookback];
+    const curr = rawPoints[i];
+    const next = rawPoints[Math.min(i + lookback, rawPoints.length - 1)];
+
+    // Calculate angle between vectors
+    const v1x = curr.x - prev.x;
+    const v1y = curr.y - prev.y;
+    const v2x = next.x - curr.x;
+    const v2y = next.y - curr.y;
+
+    const dot = v1x * v2x + v1y * v2y;
+    const mag1 = Math.sqrt(v1x * v1x + v1y * v1y);
+    const mag2 = Math.sqrt(v2x * v2x + v2y * v2y);
+
+    if (mag1 < 5 || mag2 < 5) continue;
+
+    const cosAngle = dot / (mag1 * mag2);
+    const angle = Math.acos(Math.max(-1, Math.min(1, cosAngle))) * (180 / Math.PI);
+
+    if (angle > angleThreshold) {
+      const lastCornerIdx = corners[corners.length - 1];
+      const distFromLastCorner = Math.hypot(
+        rawPoints[i].x - rawPoints[lastCornerIdx].x,
+        rawPoints[i].y - rawPoints[lastCornerIdx].y
+      );
+
+      if (distFromLastCorner > minSegmentLength) {
+        corners.push(i);
+      }
+    }
+  }
+
+  corners.push(rawPoints.length - 1);
+  return corners;
+};
+
+/**
+ * Snaps endpoint to nearest cardinal/diagonal angle if close enough
+ */
+const snapToAngleIfClose = (startPoint, endPoint, snapAngles = [0, 90, 180, 270], tolerance = 8) => {
+  const dx = endPoint.x - startPoint.x;
+  const dy = endPoint.y - startPoint.y;
+  const distance = Math.hypot(dx, dy);
+
+  if (distance < 5) return endPoint;
+
+  let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+  if (angle < 0) angle += 360;
+
+  let closestAngle = null;
+  let minDiff = tolerance;
+
+  for (const snapAngle of snapAngles) {
+    let diff = Math.abs(angle - snapAngle);
+    if (diff > 180) diff = 360 - diff;
+
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestAngle = snapAngle;
+    }
+  }
+
+  if (closestAngle !== null) {
+    const radians = closestAngle * (Math.PI / 180);
+    return {
+      x: startPoint.x + distance * Math.cos(radians),
+      y: startPoint.y + distance * Math.sin(radians),
+    };
+  }
+
+  return endPoint;
+};
+
+/**
  * Main function that analyzes a gesture and returns processed path with metadata
  */
 export const derivePathFromGesture = (rawPoints, options = {}) => {
@@ -103,7 +186,7 @@ export const derivePathFromGesture = (rawPoints, options = {}) => {
     shiftKey = false,
     altKey = false,
     pathModeHint = "auto", // 'auto', 'direct', 'curved'
-    straightThreshold = 2 * (window.devicePixelRatio || 1),
+    straightThreshold = 5 * (window.devicePixelRatio || 1),
     axisLockThreshold = 5,
     simplifyEpsilon = 3,
     smoothingIterations = 2,
@@ -124,6 +207,36 @@ export const derivePathFromGesture = (rawPoints, options = {}) => {
   // If user explicitly chose linear mode, skip straight detection
   if (pathModeHint === "direct") {
     return { kind: "straight", points: [startPoint, endPoint] };
+  }
+
+  // NEW: Multi-segment straight path detection (if Shift held)
+  if (shiftKey && pathModeHint !== "curved" && rawPoints.length > 10) {
+    const cornerIndices = detectCorners(rawPoints, 45, 20);
+
+    if (cornerIndices.length > 2) {
+      const finalPoints = [rawPoints[0]];
+
+      for (let i = 0; i < cornerIndices.length - 1; i++) {
+        const segmentStart = rawPoints[cornerIndices[i]];
+        const segmentEnd = rawPoints[cornerIndices[i + 1]];
+
+        const dx = Math.abs(segmentEnd.x - segmentStart.x);
+        const dy = Math.abs(segmentEnd.y - segmentStart.y);
+
+        // Snap each segment to dominant axis
+        if (dx > dy) {
+          finalPoints.push({ x: segmentEnd.x, y: segmentStart.y });
+        } else {
+          finalPoints.push({ x: segmentStart.x, y: segmentEnd.y });
+        }
+      }
+
+      return {
+        kind: "straight",
+        subKind: "multi-segment",
+        points: finalPoints,
+      };
+    }
   }
 
   // Test 1: Almost straight?
@@ -154,7 +267,21 @@ export const derivePathFromGesture = (rawPoints, options = {}) => {
           return {
             kind: "straight",
             subKind: "horizontal",
-            points: [{ x: endPoint.x, y: startPoint.y }, endPoint],
+            points: [startPoint, { x: endPoint.x, y: startPoint.y }],
+          };
+        } else {
+          // NEW: Snap to cardinal + diagonal angles
+          const snappedEnd = snapToAngleIfClose(
+            startPoint,
+            endPoint,
+            [0, 45, 90, 135, 180, 225, 270, 315],
+            8
+          );
+
+          return {
+            kind: "straight",
+            subKind: snappedEnd !== endPoint ? "angle-snapped" : "straight",
+            points: [startPoint, snappedEnd],
           };
         }
       }

@@ -246,16 +246,22 @@ const Stage = ({
           shiftKey: drawingModifiers.shiftKey,
           altKey: drawingModifiers.altKey,
           pathModeHint: pathMode,
-          straightThreshold: 3 * (window.devicePixelRatio || 1),
+          straightThreshold: 5 * (window.devicePixelRatio || 1),
           axisLockThreshold: 10,
           simplifyEpsilon: 3,
           smoothingIterations: 2,
         });
 
+        // Convert center coordinates back to top-left for storage
+        const pathInTopLeftCoords = processedPath.points.map((p) => ({
+          x: p.x - DANCER_WIDTH / 2,
+          y: p.y - DANCER_HEIGHT / 2,
+        }));
+
         if (onSavePath) {
           onSavePath(
             pathInitiatorDancer.id,
-            processedPath.points,
+            pathInTopLeftCoords,
             processedPath.kind,
             processedPath.subKind
           );
@@ -317,9 +323,14 @@ const Stage = ({
         });
 
         setPathInitiatorDancer(dancer);
-        setCurrentDrawingPath(
-          currentVisualPosition ? [currentVisualPosition] : [coords]
-        );
+        // Convert to center coordinates for drawing
+        const dancerCenter = currentVisualPosition
+          ? {
+              x: currentVisualPosition.x + DANCER_WIDTH / 2,
+              y: currentVisualPosition.y + DANCER_HEIGHT / 2,
+            }
+          : coords;
+        setCurrentDrawingPath([dancerCenter]);
         setIsCurrentlyDrawingPath(true);
 
         if (!selectedDancerIds || !selectedDancerIds.has(dancer.id)) {
@@ -465,7 +476,7 @@ const Stage = ({
       shiftKey: drawingModifiers.shiftKey,
       altKey: drawingModifiers.altKey,
       pathModeHint: pathMode,
-      straightThreshold: 3 * (window.devicePixelRatio || 1),
+      straightThreshold: 5 * (window.devicePixelRatio || 1),
       axisLockThreshold: 10,
       simplifyEpsilon: 3,
       smoothingIterations: 2,
@@ -743,6 +754,41 @@ const Stage = ({
     }${index === activeGroupIndex ? " (Selected)" : ""}`;
   };
 
+  /**
+   * Filters out perpendicular wobble while preserving intentional direction changes
+   */
+  const shouldAddPoint = (newPoint, pathSoFar, minDistance = 5, wobbleThreshold = 3) => {
+    if (pathSoFar.length === 0) return true;
+
+    const last = pathSoFar[pathSoFar.length - 1];
+    const distance = Math.hypot(newPoint.x - last.x, newPoint.y - last.y);
+
+    if (distance < minDistance) return false;
+
+    // If we have established direction, filter perpendicular wobble
+    if (pathSoFar.length >= 2) {
+      const prevLast = pathSoFar[pathSoFar.length - 2];
+
+      const pathDx = last.x - prevLast.x;
+      const pathDy = last.y - prevLast.y;
+      const pathMag = Math.sqrt(pathDx * pathDx + pathDy * pathDy);
+
+      if (pathMag > 1) {
+        const newDx = newPoint.x - last.x;
+        const newDy = newPoint.y - last.y;
+
+        // Perpendicular distance using cross product
+        const perpDist = Math.abs(pathDx * newDy - pathDy * newDx) / pathMag;
+
+        if (perpDist < wobbleThreshold && distance < minDistance * 1.5) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  };
+
   const handlePointerMove = useCallback(
     (e) => {
       if (isPanning) {
@@ -776,18 +822,8 @@ const Stage = ({
           y: clampedPathPointY,
         };
 
-        if (currentDrawingPath.length > 0) {
-          const last = currentDrawingPath[currentDrawingPath.length - 1];
-          if (
-            Math.hypot(
-              clampedPathCoords.x - last.x,
-              clampedPathCoords.y - last.y
-            ) > 5
-          ) {
-            setCurrentDrawingPath((prev) => [...prev, clampedPathCoords]);
-          }
-        } else {
-          setCurrentDrawingPath([clampedPathCoords]);
+        if (shouldAddPoint(clampedPathCoords, currentDrawingPath, 5, 3)) {
+          setCurrentDrawingPath((prev) => [...prev, clampedPathCoords]);
         }
       } else if (isDraggingDancer && draggingDancer && stageMode === "select") {
         e.preventDefault();
