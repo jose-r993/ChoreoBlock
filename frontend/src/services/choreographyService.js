@@ -5,11 +5,50 @@ import { supabase } from './supabase';
  */
 export const choreographyService = {
   /**
+   * Upload audio file to Supabase Storage
+   * @param {File} audioFile - The audio file to upload
+   * @param {string} projectId - The project ID for organizing files
+   * @returns {Promise<string>} Public URL of the uploaded file
+   */
+  async uploadAudioFile(audioFile, projectId) {
+    try {
+      if (!audioFile) {
+        throw new Error('No audio file provided');
+      }
+
+      // Create a unique file name with project ID
+      const fileExt = audioFile.name.split('.').pop();
+      const fileName = `${projectId}/${Date.now()}.${fileExt}`;
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('audio-files')
+        .upload(fileName, audioFile, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('audio-files')
+        .getPublicUrl(fileName);
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error('Error uploading audio file:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Save a complete choreography project
    * @param {Object} projectData - All project data including formations, dancers, etc.
+   * @param {File} audioFile - The audio file (if new or updated)
    * @returns {Promise<Object>} Saved project with ID
    */
-  async saveProject(projectData) {
+  async saveProject(projectData, audioFile = null) {
     try {
       const {
         name,
@@ -23,43 +62,73 @@ export const choreographyService = {
         formations,
       } = projectData;
 
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User must be authenticated to save projects');
+      }
+
       // Start a transaction-like operation
       // 1. Insert or update project
       let projectId;
+      let finalAudioFileUrl = audioFileUrl;
 
       if (projectData.id) {
         // Update existing project
+        projectId = projectData.id;
+
+        // Upload new audio file if provided
+        if (audioFile) {
+          finalAudioFileUrl = await this.uploadAudioFile(audioFile, projectId);
+        }
+
         const { data: updatedProject, error: updateError } = await supabase
           .from('projects')
           .update({
             name,
             description,
             bpm,
-            audio_file_name: audioFileName,
-            audio_file_url: audioFileUrl,
+            audio_file_name: audioFile ? audioFile.name : audioFileName,
+            audio_file_url: finalAudioFileUrl,
           })
           .eq('id', projectData.id)
+          .eq('user_id', user.id) // Ensure user owns this project
           .select()
           .single();
 
         if (updateError) throw updateError;
         projectId = updatedProject.id;
       } else {
-        // Insert new project
+        // Insert new project first to get ID
         const { data: newProject, error: insertError } = await supabase
           .from('projects')
           .insert({
+            user_id: user.id, // Associate project with current user
             name,
             description,
             bpm,
-            audio_file_name: audioFileName,
-            audio_file_url: audioFileUrl,
+            audio_file_name: audioFile ? audioFile.name : audioFileName,
+            audio_file_url: null, // Will update after upload
           })
           .select()
           .single();
 
         if (insertError) throw insertError;
         projectId = newProject.id;
+
+        // Upload audio file with the new project ID
+        if (audioFile) {
+          finalAudioFileUrl = await this.uploadAudioFile(audioFile, projectId);
+
+          // Update project with audio URL
+          const { error: urlUpdateError } = await supabase
+            .from('projects')
+            .update({ audio_file_url: finalAudioFileUrl })
+            .eq('id', projectId)
+            .eq('user_id', user.id); // Ensure user owns this project
+
+          if (urlUpdateError) throw urlUpdateError;
+        }
       }
 
       // 2. Save beat timestamps
@@ -101,6 +170,8 @@ export const choreographyService = {
           initial_x: dancer.initialX,
           initial_y: dancer.initialY,
           order_index: dancer.orderIndex,
+          color: dancer.color || '#00AAFF',
+          shape: dancer.shape || 'circle',
         }));
 
         const { data: insertedDancers, error: dancersError } = await supabase
@@ -208,11 +279,18 @@ export const choreographyService = {
    */
   async loadProject(projectId) {
     try {
-      // 1. Load project
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User must be authenticated to load projects');
+      }
+
+      // 1. Load project (ensure user owns it)
       const { data: project, error: projectError } = await supabase
         .from('projects')
         .select('*')
         .eq('id', projectId)
+        .eq('user_id', user.id) // Only load projects owned by current user
         .single();
 
       if (projectError) throw projectError;
@@ -259,6 +337,8 @@ export const choreographyService = {
         initialX: dancer.initial_x,
         initialY: dancer.initial_y,
         orderIndex: dancer.order_index,
+        color: dancer.color || '#00AAFF',
+        shape: dancer.shape || 'circle',
         dbId: dancer.id, // Keep database ID for reference
       }));
 
@@ -321,9 +401,16 @@ export const choreographyService = {
    */
   async listProjects() {
     try {
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User must be authenticated to list projects');
+      }
+
       const { data, error } = await supabase
         .from('projects')
         .select('id, name, description, bpm, created_at, updated_at')
+        .eq('user_id', user.id) // Only show projects owned by current user
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
@@ -342,10 +429,17 @@ export const choreographyService = {
    */
   async deleteProject(projectId) {
     try {
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User must be authenticated to delete projects');
+      }
+
       const { error } = await supabase
         .from('projects')
         .delete()
-        .eq('id', projectId);
+        .eq('id', projectId)
+        .eq('user_id', user.id); // Ensure user owns this project
 
       if (error) throw error;
 

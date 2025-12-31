@@ -1,10 +1,44 @@
 .upload-page {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 1rem;
+
+  .upload-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    gap: 1rem;
+  }
+
+  .back-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #f5f5f5;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    svg {
+      flex-shrink: 0;
+    }
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-color: #00AAFF;
+      color: #00AAFF;
+    }
+  }
 
   .upload-header {
+    flex: 1;
     text-align: center;
-    margin-bottom: 2rem;
   }
 
   .upload-container {

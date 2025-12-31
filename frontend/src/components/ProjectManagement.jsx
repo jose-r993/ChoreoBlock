@@ -1,4 +1,5 @@
 import React from "react";
+import UserMenu from "./UserMenu";
 import "../styles/ProjectManagement.scss";
 
 const ProjectManagement = ({ onSave, onLoad, projectName, audioFileName }) => {
@@ -9,6 +10,7 @@ const ProjectManagement = ({ onSave, onLoad, projectName, audioFileName }) => {
           <h1 className="project-title">{projectName || 'Untitled Project'}</h1>
           {audioFileName && <span className="audio-name">{audioFileName}</span>}
         </div>
+        <UserMenu />
       </section>
 
       <section className="control-section">

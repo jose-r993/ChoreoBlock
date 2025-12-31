@@ -4,7 +4,7 @@
   background-color: variables.$background-color;
   width: 24rem;
   height: 100%;
-  max-height: calc(100vh - 186px); // 221px is the waveform section height
+  max-height: calc(100vh - 166px); // Adjusted for 60px waveform height
   display: flex;
   flex-direction: column;
   overflow: hidden;

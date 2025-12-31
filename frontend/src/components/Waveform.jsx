@@ -132,6 +132,27 @@ const Waveform = ({
     }
   }, [wavesurfer, isReady, zoom, currentZoom]);
 
+  // Force update waveformScrollWidth when it's 0 but wavesurfer is ready
+  useEffect(() => {
+    if (wavesurfer && isReady && waveformScrollWidth === 0 && duration > 0) {
+      const wrapper = wavesurfer.getWrapper();
+      if (wrapper) {
+        let width = wrapper.scrollWidth;
+        if (width === 0) {
+          const pxPerSec = wavesurfer.options.minPxPerSec || 50;
+          width = Math.ceil(duration * pxPerSec);
+          console.log('🔧 Force setting width:', width);
+        }
+        if (width > 0) {
+          setWaveformScrollWidth(width);
+          if (formationsContainerRef.current) {
+            formationsContainerRef.current.style.width = `${width}px`;
+          }
+        }
+      }
+    }
+  }, [wavesurfer, isReady, waveformScrollWidth, duration, customGroups]);
+
   useEffect(() => {
     if (wavesurfer && isReady) {
       let rafIdUpdate = null;
@@ -149,7 +170,15 @@ const Waveform = ({
             rafIdUpdate = null;
             return;
           }
-          const currentWidth = waveWrapperElement.scrollWidth;
+          let currentWidth = waveWrapperElement.scrollWidth;
+
+          // Fallback: if scrollWidth is 0, try to calculate from duration and zoom
+          if (currentWidth === 0 && wavesurfer && duration > 0) {
+            const pxPerSec = wavesurfer.options.minPxPerSec || 50;
+            currentWidth = Math.ceil(duration * pxPerSec);
+            console.log('📏 Calculated fallback width:', currentWidth, 'from duration:', duration, 'pxPerSec:', pxPerSec);
+          }
+
           const scrollLeft = waveWrapperElement.scrollLeft;
           setWaveformScrollWidth(currentWidth);
           if (formationsContainerRef.current) {
@@ -212,6 +241,26 @@ const Waveform = ({
         if (baseZoomRef.current === null && wavesurfer.options.minPxPerSec) {
           baseZoomRef.current = wavesurfer.options.minPxPerSec;
         }
+
+        // Retry after a delay in case scrollWidth wasn't ready
+        setTimeout(() => {
+          const wrapper = wavesurfer?.getWrapper();
+          if (wrapper && wrapper.scrollWidth > 0) {
+            setWaveformScrollWidth(wrapper.scrollWidth);
+            if (formationsContainerRef.current) {
+              formationsContainerRef.current.style.width = `${wrapper.scrollWidth}px`;
+            }
+          }
+        }, 100);
+        setTimeout(() => {
+          const wrapper = wavesurfer?.getWrapper();
+          if (wrapper && wrapper.scrollWidth > 0) {
+            setWaveformScrollWidth(wrapper.scrollWidth);
+            if (formationsContainerRef.current) {
+              formationsContainerRef.current.style.width = `${wrapper.scrollWidth}px`;
+            }
+          }
+        }, 500);
       }
 
       return () => {
@@ -881,11 +930,22 @@ const Waveform = ({
       beatTimestamps.length === 0 ||
       !duration
     ) {
+      console.log('❌ renderFormations early return:', {
+        wavesurfer: !!wavesurfer,
+        isReady,
+        hasContainer: !!formationsContainerRef.current,
+        waveformScrollWidth,
+        beatTimestamps: beatTimestamps?.length,
+        duration,
+      });
       return null;
     }
     if (!Array.isArray(customGroups) || customGroups.length === 0) {
+      console.log('❌ No customGroups to render');
       return null;
     }
+
+    console.log('✅ Rendering', customGroups.length, 'formations with width:', waveformScrollWidth);
 
     return customGroups.map((group, originalIndex) => {
       const startPosition = timeToPosition(

@@ -18,13 +18,13 @@ const VERTICAL_MARGIN = 40;
 
 const WaveformPage = () => {
   const location = useLocation();
-  const { audioFile, bpm, beatTimestamps = [] } = location.state || {};
+  const { audioFile, bpm, beatTimestamps = [], loadedProject } = location.state || {};
   const wavesurferRef = useRef(null);
   const nextDancerIndexRef = useRef(0);
 
-  // Project state
-  const [projectId, setProjectId] = useState(null);
-  const [projectName, setProjectName] = useState('');
+  // Project state - initialize from loadedProject if available
+  const [projectId, setProjectId] = useState(loadedProject?.id || null);
+  const [projectName, setProjectName] = useState(loadedProject?.name || '');
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
 
@@ -43,11 +43,19 @@ const WaveformPage = () => {
   const [initialGroupStart, setInitialGroupStart] = useState("1");
   const [activeGroupIndex, setActiveGroupIndex] = useState(null);
 
-  const [dancers, setDancers] = useState([]);
-  const [formations, setFormations] = useState([]);
+  const [dancers, setDancers] = useState(loadedProject?.dancers || []);
+  const [formations, setFormations] = useState(loadedProject?.formations || []);
 
   const [pathMode, setPathMode] = useState("auto");
   const [selectedDancerIds, setSelectedDancerIds] = useState(new Set());
+
+  // Initialize nextDancerIndexRef from loaded project
+  useEffect(() => {
+    if (loadedProject?.dancers && loadedProject.dancers.length > 0) {
+      const maxIndex = Math.max(...loadedProject.dancers.map(d => d.orderIndex));
+      nextDancerIndexRef.current = maxIndex + 1;
+    }
+  }, []);
 
   useEffect(() => {
     setFormations((prevFormations) => {

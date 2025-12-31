@@ -1,40 +1,43 @@
+@use "variables";
+
 .path-drawing {
-  padding: 16px;
-  background: #1a1a1a;
-  border-radius: 8px;
-  margin-bottom: 16px;
+  color: #f5f5f5;
 
   h3 {
-    margin: 0 0 12px 0;
-    font-size: 16px;
-    color: #fff;
+    font-size: 1rem;
     font-weight: 600;
+    margin: 0 0 1rem 0;
+    color: #f5f5f5;
+    padding-bottom: 0.5rem;
+    border-bottom: solid 0.2mm variables.$lavender;
   }
 
   h4 {
     margin: 0 0 8px 0;
-    font-size: 14px;
-    color: #ccc;
-    font-weight: 500;
+    font-size: 0.9rem;
+    color: #f5f5f5;
+    font-weight: 600;
   }
 
   .instructions {
-    padding: 12px;
-    border-radius: 6px;
-    margin-bottom: 16px;
-    font-size: 13px;
+    padding: 1rem;
+    background-color: rgba(variables.$lavender, 0.05);
+    border: solid 0.2mm variables.$darker-lavender;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
     line-height: 1.5;
 
     &.warning {
       background: rgba(255, 170, 0, 0.1);
-      border: 1px solid rgba(255, 170, 0, 0.3);
+      border: solid 0.2mm rgba(255, 170, 0, 0.5);
       color: #ffaa00;
     }
 
     &.highlight {
-      background: rgba(0, 170, 255, 0.1);
-      border: 1px solid rgba(0, 170, 255, 0.3);
-      color: #00aaff;
+      background: rgba(variables.$accent-color, 0.1);
+      border: solid 0.2mm rgba(variables.$accent-color, 0.5);
+      color: variables.$accent-color;
     }
 
     p {
@@ -46,22 +49,22 @@
 
     .selection-info {
       font-weight: 600;
-      color: #fff;
+      color: #f5f5f5;
     }
 
     b {
-      color: #fff;
+      color: #f5f5f5;
       font-weight: 600;
     }
   }
 
   .path-mode-selector {
-    margin-bottom: 16px;
+    margin-bottom: 1rem;
 
     .path-modes {
       display: flex;
-      gap: 12px;
-      margin-top: 8px;
+      gap: 0.75rem;
+      margin-top: 0.5rem;
 
       .path-mode-btn {
         flex: 1;
@@ -69,26 +72,27 @@
         flex-direction: column;
         align-items: center;
         gap: 8px;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 2px solid rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        color: #ccc;
+        padding: 0.75rem;
+        background: rgba(variables.$lavender, 0.05);
+        border: solid 0.2mm variables.$darker-lavender;
+        border-radius: 0.5rem;
+        color: #bbb;
         cursor: pointer;
         transition: all 0.2s ease;
-        font-size: 14px;
+        font-size: 0.85rem;
         font-weight: 500;
 
         &:hover {
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.2);
-          color: #fff;
+          background: rgba(variables.$lavender, 0.1);
+          border-color: variables.$lavender;
+          color: #f5f5f5;
         }
 
         &.active {
-          background: rgba(0, 170, 255, 0.1);
-          border-color: #00aaff;
-          color: #00aaff;
+          background: rgba(variables.$accent-color, 0.2);
+          border-color: variables.$accent-color;
+          color: variables.$accent-color;
+          box-shadow: 0 0 5px rgba(variables.$accent-color, 0.5);
         }
 
         .preview-line {
@@ -127,40 +131,41 @@
 
   .dancers-list-for-clear {
     .empty-list {
-      padding: 20px;
+      padding: 1rem;
       text-align: center;
-      color: #666;
-      font-size: 13px;
-      background: rgba(255, 255, 255, 0.02);
-      border-radius: 6px;
-      border: 1px dashed rgba(255, 255, 255, 0.1);
+      color: #bbb;
+      font-size: 0.85rem;
+      font-style: italic;
+      background: rgba(variables.$lavender, 0.05);
+      border: solid 0.2mm variables.$darker-lavender;
+      border-radius: 0.5rem;
     }
 
     .dancer-items {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 0.5rem;
 
       .dancer-item-manage {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 8px 12px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 6px;
+        padding: 0.75rem;
+        background: rgba(variables.$lavender, 0.05);
+        border: solid 0.2mm variables.$darker-lavender;
+        border-radius: 0.5rem;
         cursor: pointer;
         transition: all 0.2s ease;
 
         &:hover {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.15);
+          background: rgba(variables.$lavender, 0.1);
+          border-color: variables.$lavender;
         }
 
         &.selected {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: #fff;
-          box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+          background: rgba(variables.$accent-color, 0.2);
+          border-color: variables.$accent-color;
+          box-shadow: 0 0 5px rgba(variables.$accent-color, 0.5);
         }
 
         .dancer-info {
@@ -173,32 +178,32 @@
           }
 
           .dancer-name {
-            color: #fff;
-            font-size: 13px;
+            color: #f5f5f5;
+            font-size: 0.85rem;
             font-weight: 500;
           }
         }
 
         .clear-path-btn-small {
-          padding: 4px 8px;
-          background: rgba(255, 0, 0, 0.2);
-          border: 1px solid rgba(255, 0, 0, 0.4);
-          border-radius: 4px;
+          padding: 0.25rem 0.5rem;
+          background: rgba(139, 38, 53, 0.3);
+          border: solid 0.2mm #8b2635;
+          border-radius: 0.25rem;
           color: #ff6666;
-          font-size: 11px;
+          font-size: 0.75rem;
           cursor: pointer;
           transition: all 0.2s ease;
 
           &:hover {
-            background: rgba(255, 0, 0, 0.3);
-            border-color: rgba(255, 0, 0, 0.6);
-            color: #ff8888;
+            background: #8b2635;
+            border-color: #a13040;
+            color: #f5f5f5;
           }
         }
 
         .path-status-small {
-          font-size: 11px;
-          color: #666;
+          font-size: 0.75rem;
+          color: #bbb;
           font-style: italic;
         }
       }

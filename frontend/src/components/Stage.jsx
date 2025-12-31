@@ -88,6 +88,7 @@ const Stage = ({
     if (viewport) {
       viewport.addEventListener("wheel", preventDefault, { passive: false });
       viewport.addEventListener("contextmenu", preventDefault);
+
       return () => {
         viewport.removeEventListener("wheel", preventDefault);
         viewport.removeEventListener("contextmenu", preventDefault);
@@ -105,10 +106,10 @@ const Stage = ({
 
   const clampTranslation = useCallback(
     (newTx, newTy, currentScale) => {
-      const minTx = viewportDimensions.width - CONTAINER_WIDTH * currentScale;
-      const maxTx = 0;
-      const minTy = viewportDimensions.height - CONTAINER_HEIGHT * currentScale;
-      const maxTy = 0;
+      const minTx = viewportDimensions.width - CONTAINER_WIDTH * currentScale - PADDING * currentScale;
+      const maxTx = PADDING * currentScale;
+      const minTy = viewportDimensions.height - CONTAINER_HEIGHT * currentScale - PADDING * currentScale;
+      const maxTy = PADDING * currentScale;
 
       return {
         tx: Math.max(minTx, Math.min(maxTx, newTx)),
@@ -142,26 +143,52 @@ const Stage = ({
     (e) => {
       e.preventDefault();
 
-      const delta = e.deltaY;
-      const zoomIn = delta < 0;
-      const newScale = zoomIn
-        ? Math.min(MAX_SCALE, scale * ZOOM_FACTOR)
-        : Math.max(MIN_SCALE, scale / ZOOM_FACTOR);
+      // Detect pinch-to-zoom gesture (browser sets ctrlKey for pinch on trackpad)
+      const isPinchZoom = e.ctrlKey || e.metaKey;
 
-      if (newScale !== scale) {
-        const rect = viewportRef.current.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+      if (isPinchZoom) {
+        // PINCH-TO-ZOOM: Zoom at cursor position
+        const delta = e.deltaY;
 
-        const worldX = (mouseX - tx) / scale;
-        const worldY = (mouseY - ty) / scale;
+        // On Mac trackpads, deltaY is very sensitive during pinch, so we use a smaller factor
+        const zoomSensitivity = 0.01;
+        const zoomMultiplier = 1 - delta * zoomSensitivity;
 
-        const newTx = mouseX - worldX * newScale;
-        const newTy = mouseY - worldY * newScale;
+        const newScale = Math.max(
+          MIN_SCALE,
+          Math.min(MAX_SCALE, scale * zoomMultiplier)
+        );
 
-        const clamped = clampTranslation(newTx, newTy, newScale);
+        if (newScale !== scale) {
+          const rect = viewportRef.current.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
 
-        setScale(newScale);
+          // Calculate world coordinates at mouse position
+          const worldX = (mouseX - tx) / scale;
+          const worldY = (mouseY - ty) / scale;
+
+          // Calculate new translation to keep mouse position fixed
+          const newTx = mouseX - worldX * newScale;
+          const newTy = mouseY - worldY * newScale;
+
+          const clamped = clampTranslation(newTx, newTy, newScale);
+
+          setScale(newScale);
+          setTx(clamped.tx);
+          setTy(clamped.ty);
+        }
+      } else {
+        // TWO-FINGER PAN: Pan the stage
+        const panSensitivity = 1.0; // Adjust this to make panning faster/slower
+        const deltaX = e.deltaX * panSensitivity;
+        const deltaY = e.deltaY * panSensitivity;
+
+        const newTx = tx - deltaX;
+        const newTy = ty - deltaY;
+
+        const clamped = clampTranslation(newTx, newTy, scale);
+
         setTx(clamped.tx);
         setTy(clamped.ty);
       }

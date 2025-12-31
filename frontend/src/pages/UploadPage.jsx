@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
+import UserMenu from "../components/UserMenu";
 import "../styles/UploadPage.scss";
 
 const UploadPage = () => {
@@ -50,12 +51,25 @@ const UploadPage = () => {
     }
   };
 
+  const handleGoBack = () => {
+    navigate('/projects');
+  };
+
   return (
     <div className="upload-page">
-      <header className="upload-header">
-        <h1>Ballet Folklorico Blocking Tool</h1>
-        <p>Upload audio to analyze beats and create choreography sections</p>
-      </header>
+      <div className="upload-page-header">
+        <button className="back-button" onClick={handleGoBack}>
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd"/>
+          </svg>
+          Back to Projects
+        </button>
+        <header className="upload-header">
+          <h1>Create New Project</h1>
+          <p>Upload audio to analyze beats and create choreography sections</p>
+        </header>
+        <UserMenu />
+      </div>
       <div className="upload-container">
         <label htmlFor="audio-upload" className="upload-label">
           <div className="upload-icon">&#x266B;</div>
